@@ -144,6 +144,7 @@ wkj-present/
 ## 联系
 
 X（Twitter）：[@JiafuWang](https://x.com/JiafuWang)
+邮箱：[keji.dev@outlook.com](mailto:keji.dev@outlook.com)
 
 ## License
 
