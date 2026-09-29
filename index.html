@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="即兴演讲 · Impromptu Speech —— 从本地 PDF 题库中随机抽题并立即阅读的演讲训练工具。纯静态、纯前端，文件不上传服务器。">
+    <title>即兴演讲 · Impromptu Speech</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='12' y='8' width='40' height='48' rx='4' fill='%23f5f0e6' stroke='%232c2c2c' stroke-width='3'/%3E%3Crect x='20' y='18' width='24' height='4' fill='%23c45a3b'/%3E%3Crect x='20' y='28' width='18' height='3' fill='%232c2c2c'/%3E%3Crect x='20' y='36' width='20' height='3' fill='%232c2c2c'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #f5f0e6;
+            --color-surface: #ffffff;
+            --color-surface-hover: #faf8f5;
+            --color-text-primary: #2c2c2c;
+            --color-text-secondary: #6b6b6b;
+            --color-accent: #c45a3b;
+            --color-accent-hover: #a84a2f;
+            --color-border: #e8e0d5;
+            --color-success: #5a8c5a;
+            --font-display: 'Cormorant Garamond', Georgia, serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* 作者样式（display:flex/block 等）会覆盖 hidden 属性的 UA 样式，全局兜底 */
+        [hidden] {
+            display: none !important;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--color-bg);
+            color: var(--color-text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Subtle noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Ambient background glow */
+        .ambient-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(196, 90, 59, 0.08) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: breathe 8s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+        .container {
+            flex: 1;
+            width: 100%;
+            max-width: 760px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ============ Header ============ */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 1s ease;
+            width: 100%;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .hero-media-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .hero-media {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            max-width: min(560px, 100%);
+        }
+
+        .hero-media img {
+            max-width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+            display: block;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .logo-container {
+            margin-bottom: 20px;
+            padding: 8px 16px;
+            display: inline-block;
+        }
+
+        .logo {
+            width: 100px;
+            height: auto;
+            display: block;
+        }
+
+        .brand-name {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 500;
+            letter-spacing: 0.3em;
+            color: var(--color-text-primary);
+            margin-bottom: 8px;
+        }
+
+        .brand-tagline {
+            font-size: 0.85rem;
+            font-weight: 300;
+            letter-spacing: 0.2em;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+        }
+
+        .hero-upload-link {
+            margin-top: 12px;
+            background: none;
+            border: none;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-bottom: 1px dashed var(--color-border);
+            padding: 2px 4px;
+            transition: all 0.3s ease;
+        }
+
+        .hero-upload-link:hover {
+            color: var(--color-accent);
+            border-bottom-color: var(--color-accent);
+        }
+
+        /* ============ Panels ============ */
+        .panel {
+            width: 100%;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            animation: fadeIn 1s ease 0.15s both;
+        }
+
+        .panel-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .panel-title .count {
+            color: var(--color-accent);
+            font-weight: 600;
+        }
+
+        .import-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            padding: 10px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            color: var(--color-text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+            background: var(--color-surface-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            border-color: var(--color-accent);
+            color: #fff;
+            background: var(--color-accent);
+        }
+
+        .btn-primary:hover {
+            background: var(--color-accent-hover);
+            border-color: var(--color-accent-hover);
+            color: #fff;
+        }
+
+        /* Drop zone */
+        .drop-hint {
+            margin-top: 14px;
+            border: 1px dashed var(--color-border);
+            border-radius: 6px;
+            padding: 14px 16px;
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.05em;
+            transition: all 0.25s ease;
+        }
+
+        .drop-hint.dragover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+            background: rgba(196, 90, 59, 0.05);
+        }
+
+        /* File chips */
+        .file-list {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 100%;
+            padding: 6px 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-surface-hover);
+            font-size: 0.8rem;
+            color: var(--color-text-primary);
+        }
+
+        .file-chip .chip-index {
+            color: var(--color-text-secondary);
+            font-size: 0.7rem;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+
+        .file-chip .chip-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 340px;
+        }
+
+        .file-chip .chip-name.duplicated {
+            border-bottom: 1px dotted var(--color-accent);
+        }
+
+        .file-chip .chip-remove {
+            background: none;
+            border: none;
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 2px;
+            flex-shrink: 0;
+            transition: color 0.2s ease;
+        }
+
+        .file-chip .chip-remove:hover {
+            color: var(--color-accent);
+        }
+
+        .file-empty {
+            margin-top: 14px;
+            font-size: 0.82rem;
+            color: var(--color-text-secondary);
+            line-height: 1.8;
+        }
+
+        .panel-note {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--color-border);
+            font-size: 0.72rem;
+            color: var(--color-text-secondary);
+            line-height: 1.9;
+        }
+
+        /* ============ Draw section ============ */
+        .draw-section {
+            animation: fadeIn 1s ease 0.25s both;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .draw-btn {
+            background: var(--color-surface);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border);
+            padding: 24px 80px;
+            font-size: 1.1rem;
+            font-family: var(--font-body);
+            font-weight: 400;
+            letter-spacing: 0.15em;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .draw-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--color-accent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .draw-btn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .draw-btn:hover:not(:disabled) {
+            border-color: var(--color-accent);
+            background: var(--color-surface-hover);
+        }
+
+        .draw-btn:hover:not(:disabled)::before {
+            opacity: 0.1;
+        }
+
+        .draw-btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .draw-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .draw-hint {
+            margin-top: 12px;
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.08em;
+        }
+
+        .draw-options {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .draw-options input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 34px;
+            height: 18px;
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            background: var(--color-surface);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .draw-options input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--color-text-secondary);
+            transition: all 0.25s ease;
+        }
+
+        .draw-options input[type="checkbox"]:checked {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+        }
+
+        .draw-options input[type="checkbox"]:checked::after {
+            left: 18px;
+            background: #fff;
+        }
+
+        /* ============ Result ============ */
+        .result {
+            margin-top: 36px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .result.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .result-number {
+            font-family: var(--font-display);
+            font-size: 5rem;
+            font-weight: 300;
+            color: var(--color-accent);
+            line-height: 1;
+            margin-bottom: 12px;
+        }
+
+        .result-topic {
+            font-size: 1.5rem;
+            font-weight: 300;
+            color: var(--color-text-primary);
+            text-align: center;
+            max-width: 560px;
+            line-height: 1.6;
+            letter-spacing: 0.05em;
+            word-break: break-all;
+        }
+
+        .result-topic.spinning {
+            color: var(--color-text-secondary);
+        }
+
+        .result-actions {
+            margin-top: 22px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .result-note {
+            margin-top: 12px;
+            font-size: 0.72rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.05em;
+        }
+
+        /* Embedded preview (desktop) */
+        .preview-frame {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-surface-hover);
+        }
+
+        .preview-fallback {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 640px;
+            border: 1px dashed var(--color-border);
+            border-radius: 6px;
+            padding: 18px;
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        /* ============ Timer ============ */
+        .timer-section {
+            width: 100%;
+            text-align: center;
+            margin-top: 40px;
+            animation: fadeIn 1s ease 0.35s both;
+        }
+
+        .timer-presets {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+
+        .timer-preset {
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            padding: 6px 14px;
+            border: 1px solid var(--color-border);
+            border-radius: 14px;
+            background: var(--color-surface);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .timer-preset.active {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+
+        .timer-display {
+            font-family: var(--font-display);
+            font-size: 4rem;
+            font-weight: 300;
+            line-height: 1;
+            color: var(--color-text-primary);
+            font-variant-numeric: tabular-nums;
+            transition: color 0.4s ease;
+        }
+
+        .timer-display.warning {
+            color: var(--color-accent);
+        }
+
+        .timer-display.timeout {
+            animation: timeout-blink 1s ease infinite;
+        }
+
+        @keyframes timeout-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+
+        .timer-controls {
+            margin-top: 14px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        /* ============ Progress ============ */
+        .progress-section {
+            margin-top: 48px;
+            width: 100%;
+            text-align: center;
+            animation: fadeIn 1s ease 0.4s both;
+        }
+
+        .progress-label {
+            font-size: 0.75rem;
+            font-weight: 400;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .progress-grid {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 100%;
+        }
+
+        .progress-item {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-family: var(--font-body);
+            font-weight: 500;
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            color: var(--color-text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .progress-item.used {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+            color: white;
+        }
+
+        .progress-item.current {
+            border-color: var(--color-accent);
+            animation: pulse 1s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(196, 90, 59, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(196, 90, 59, 0); }
+        }
+
+        /* ============ Footer ============ */
+        .footer {
+            padding: 24px;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.1em;
+            line-height: 2;
+        }
+
+        /* Rules link */
+        .rules-link {
+            margin-top: 16px;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s ease;
+            letter-spacing: 0.05em;
+        }
+
+        .rules-link:hover {
+            color: var(--color-accent);
+            border-bottom-color: var(--color-accent);
+        }
+
+        /* ============ Toast ============ */
+        .toast-wrap {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            z-index: 1200;
+            pointer-events: none;
+            width: max-content;
+            max-width: calc(100vw - 40px);
+        }
+
+        .toast {
+            background: var(--color-text-primary);
+            color: #fdfbf7;
+            font-size: 0.8rem;
+            letter-spacing: 0.04em;
+            padding: 10px 18px;
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+            opacity: 0;
+            transform: translateY(8px);
+            transition: all 0.3s ease;
+            max-width: 100%;
+            line-height: 1.6;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ============ Modal ============ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1100;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 32px;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--color-text-primary);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--color-accent);
+        }
+
+        .modal-body {
+            color: var(--color-text-primary);
+            line-height: 1.7;
+        }
+
+        .modal-body h3 {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--color-accent);
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .modal-body h3:first-child {
+            margin-top: 0;
+        }
+
+        .modal-body p {
+            margin-bottom: 12px;
+            color: var(--color-text-primary);
+        }
+
+        .modal-body ul {
+            margin-left: 20px;
+            margin-bottom: 16px;
+        }
+
+        .modal-body li {
+            margin-bottom: 8px;
+            color: var(--color-text-primary);
+        }
+
+        /* ============ Responsive ============ */
+        @media (max-width: 640px) {
+            .container {
+                padding: 28px 14px;
+            }
+
+            .brand-name {
+                font-size: 1.8rem;
+            }
+
+            .panel {
+                padding: 18px;
+            }
+
+            .result-number {
+                font-size: 3.5rem;
+            }
+
+            .result-topic {
+                font-size: 1.2rem;
+                padding: 0 8px;
+            }
+
+            .draw-btn {
+                padding: 20px 48px;
+                font-size: 1rem;
+                width: 100%;
+            }
+
+            .import-row .btn {
+                flex: 1 1 100%;
+            }
+
+            .file-chip .chip-name {
+                max-width: 52vw;
+            }
+
+            .timer-display {
+                font-size: 3rem;
+            }
+
+            .progress-item {
+                width: 34px;
+                height: 34px;
+                font-size: 0.78rem;
+            }
+
+            .modal-content {
+                padding: 24px;
+            }
+
+            .preview-frame {
+                height: 380px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+
+    <div class="container">
+        <!-- ============ Header ============ -->
+        <header class="header">
+            <div class="hero-media-wrap" id="heroMediaWrap" hidden>
+                <div class="hero-media">
+                    <img id="heroImg" alt="自定义头图">
+                </div>
+                <div class="hero-actions">
+                    <button type="button" class="btn" id="heroChangeBtn">更换图片</button>
+                    <button type="button" class="btn" id="heroResetBtn">恢复默认</button>
+                </div>
+            </div>
+
+            <div id="brandDefault">
+                <div class="logo-container" id="logoSlot">
+                    <img src="logo.png" alt="" class="logo" id="logoImg" hidden>
+                </div>
+                <h1 class="brand-name">即兴演讲</h1>
+                <p class="brand-tagline">Impromptu Speech · PDF Lottery</p>
+            </div>
+
+            <button type="button" class="hero-upload-link" id="heroUploadLink">设置首页图片（本地上传，仅保存在你的浏览器）</button>
+        </header>
+
+        <!-- ============ Library panel ============ -->
+        <section class="panel" aria-labelledby="libraryTitle">
+            <div class="panel-title" id="libraryTitle">
+                <span>题库 · PDF Library</span>
+                <span>已收录 <span class="count" id="libraryCount">0</span> 个</span>
+            </div>
+
+            <div class="import-row">
+                <button type="button" class="btn btn-primary" id="pickFolderBtn">选择文件夹（替换题库）</button>
+                <button type="button" class="btn" id="pickFilesBtn">添加 PDF 文件（追加）</button>
+                <button type="button" class="btn" id="clearBtn" disabled>清空</button>
+            </div>
+
+            <div class="drop-hint" id="dropHint">也可以把 PDF 文件（或一个文件夹）拖到这里追加</div>
+
+            <div class="file-list" id="fileList"></div>
+            <p class="file-empty" id="fileEmpty">还没有导入文件。选择一个包含 PDF 演讲材料的文件夹，或直接添加 PDF 文件——文件名（不含 .pdf 后缀）将成为演讲题目。</p>
+
+            <p class="panel-note">
+                文件仅在你的浏览器本地读取与展示，不会上传到任何服务器；刷新页面后题库会清空，需要重新导入。
+                选择文件夹时只收录其中的直接 PDF 文件（不含子文件夹）；文件夹内容变化后需重新选择导入。
+            </p>
+        </section>
+
+        <!-- ============ Draw section ============ -->
+        <section class="draw-section">
+            <button class="draw-btn" id="drawBtn" disabled>
+                <span id="btnText">启动演讲</span>
+            </button>
+            <p class="draw-hint" id="drawHint">先在上方导入 PDF 题库</p>
+            <label class="draw-options">
+                <input type="checkbox" id="noRepeatToggle">
+                <span>不重复抽取（抽过的题不再出现）</span>
+            </label>
+            <a class="rules-link" id="rulesLink">查看训练规则</a>
+        </section>
+
+        <!-- ============ Result ============ -->
+        <div class="result" id="result" aria-live="polite">
+            <div class="result-number" id="resultNumber"></div>
+            <div class="result-topic" id="resultTopic"></div>
+            <div class="result-actions">
+                <button type="button" class="btn btn-primary" id="openPdfBtn">阅读 PDF（新标签页）</button>
+                <a class="btn" id="downloadPdfBtn" download>下载 PDF</a>
+                <button type="button" class="btn" id="redrawBtn">再抽一次</button>
+            </div>
+            <p class="result-note" id="resultNote"></p>
+            <div id="previewArea"></div>
+        </div>
+
+        <!-- ============ Timer ============ -->
+        <section class="timer-section" aria-label="演讲计时器">
+            <div class="timer-presets">
+                <button type="button" class="timer-preset active" data-seconds="60" id="presetPrep">准备 1:00</button>
+                <button type="button" class="timer-preset" data-seconds="300" id="presetSpeech">演讲 5:00</button>
+            </div>
+            <div class="timer-display" id="timerDisplay">1:00</div>
+            <div class="timer-controls">
+                <button type="button" class="btn btn-primary" id="timerStartBtn">开始</button>
+                <button type="button" class="btn" id="timerResetBtn">重置</button>
+            </div>
+        </section>
+
+        <!-- ============ Progress ============ -->
+        <section class="progress-section">
+            <div class="progress-label" id="progressLabel"><span id="progressLabelText">Progress · 本次已抽</span> / <span id="progressCount">0</span></div>
+            <div class="progress-grid" id="progressGrid"></div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        即兴演讲 · Impromptu Speech<br>
+        所有文件仅在你的浏览器本地处理，不会上传到任何服务器 · MIT License
+    </footer>
+
+    <!-- Rules Modal -->
+    <div class="modal-overlay" id="rulesModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">即兴演讲训练规则</h2>
+                <button class="modal-close" id="modalClose" aria-label="关闭">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3>目的</h3>
+                <p>练习拿到一套陌生 PPT / PDF 后，能快速看懂、张开嘴、讲完整。</p>
+                <p>不用讲得完美，重点是敢讲、能顺着讲。</p>
+
+                <h3>参与方式</h3>
+                <p>建议 2 人一组：每人随机抽取一套 PDF，现场准备后演讲，另一人负责反馈。也可以单人练习。</p>
+
+                <h3>时间安排</h3>
+                <ul>
+                    <li>准备：1 分钟</li>
+                    <li>演讲：约 5 分钟</li>
+                    <li>反馈：2–3 分钟</li>
+                </ul>
+
+                <h3>抽题规则</h3>
+                <ul>
+                    <li>现场随机抽取，抽到后原则上不换题</li>
+                    <li>文件打不开、明显缺页、内容明显不适合公开表达时可以重抽</li>
+                </ul>
+
+                <h3>演讲要求</h3>
+                <ul>
+                    <li>准备时快速翻完 PDF，找出主线，想好开场第一句和收尾一句</li>
+                    <li>不要逐字念 PDF，PDF 是提示，不是稿子</li>
+                    <li>可以卡顿，但要尽量讲完整，不要中途放弃</li>
+                    <li>可以自由发挥，补充例子、吐槽或联想</li>
+                    <li>每页尽量都带一句，不要连续跳页</li>
+                    <li>卡住时用一句话过渡，继续往下走</li>
+                </ul>
+
+                <h3>反馈方式</h3>
+                <p>听众只回答三个问题：</p>
+                <ul>
+                    <li>哪一页讲得最顺？</li>
+                    <li>哪一页最卡？卡在看不懂、不会转场，还是收不住？</li>
+                    <li>下一次可以怎么更顺？只给一条具体建议。</li>
+                </ul>
+
+                <h3>不打分，只做记录</h3>
+                <p>每人只记录两件事：这次做得好的一点，下次要改进的一点。</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-wrap" id="toastWrap"></div>
+
+    <!-- Hidden inputs -->
+    <input type="file" id="folderInput" webkitdirectory multiple hidden>
+    <input type="file" id="filesInput" accept="application/pdf,.pdf" multiple hidden>
+    <input type="file" id="imageInput" accept="image/*" hidden>
+
+    <noscript>
+        <p style="text-align:center;padding:20px;">本工具需要在浏览器中启用 JavaScript 才能使用。</p>
+    </noscript>
+
+    <script>
+    (function () {
+        'use strict';
+
+        /* ================= State ================= */
+        const state = {
+            files: [],        // { id, file, name, displayName, dirLabel, size }
+            drawnIds: [],     // 本次会话抽中历史（不重复模式下即排除集）
+            currentId: null,  // 最近一次抽中的文件 id
+            isDrawing: false,
+            pdfUrl: null,
+            preOpenWin: null,
+        };
+
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        const COVER_KEY = 'impromptu_cover';
+
+        /* ================= DOM ================= */
+        const $ = (id) => document.getElementById(id);
+        const els = {
+            libraryCount: $('libraryCount'), fileList: $('fileList'), fileEmpty: $('fileEmpty'),
+            pickFolderBtn: $('pickFolderBtn'), pickFilesBtn: $('pickFilesBtn'), clearBtn: $('clearBtn'),
+            folderInput: $('folderInput'), filesInput: $('filesInput'), imageInput: $('imageInput'),
+            dropHint: $('dropHint'),
+            drawBtn: $('drawBtn'), btnText: $('btnText'), drawHint: $('drawHint'),
+            noRepeatToggle: $('noRepeatToggle'),
+            result: $('result'), resultNumber: $('resultNumber'), resultTopic: $('resultTopic'),
+            openPdfBtn: $('openPdfBtn'), downloadPdfBtn: $('downloadPdfBtn'), redrawBtn: $('redrawBtn'),
+            resultNote: $('resultNote'), previewArea: $('previewArea'),
+            progressGrid: $('progressGrid'), progressCount: $('progressCount'), progressLabel: $('progressLabel'),
+            timerDisplay: $('timerDisplay'), timerStartBtn: $('timerStartBtn'), timerResetBtn: $('timerResetBtn'),
+            heroMediaWrap: $('heroMediaWrap'), heroImg: $('heroImg'),
+            heroChangeBtn: $('heroChangeBtn'), heroResetBtn: $('heroResetBtn'), heroUploadLink: $('heroUploadLink'),
+            brandDefault: $('brandDefault'), logoSlot: $('logoSlot'), logoImg: $('logoImg'),
+            rulesModal: $('rulesModal'), rulesLink: $('rulesLink'), modalClose: $('modalClose'),
+            toastWrap: $('toastWrap'),
+        };
+
+        /* ================= Utilities ================= */
+        function toast(msg, duration = 3200) {
+            const el = document.createElement('div');
+            el.className = 'toast';
+            el.textContent = msg;
+            els.toastWrap.appendChild(el);
+            requestAnimationFrame(() => el.classList.add('show'));
+            setTimeout(() => {
+                el.classList.remove('show');
+                setTimeout(() => el.remove(), 350);
+            }, duration);
+        }
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+
+        // 等概率随机索引：n 必须为正整数
+        function pickIndex(n) {
+            return Math.floor(Math.random() * n);
+        }
+
+        function stripPdfExt(name) {
+            return name.replace(/\.pdf$/i, '');
+        }
+
+        /* ================= Library ================= */
+        let uidSeq = 0;
+
+        function formatDirLabel(relPath, name) {
+            if (!relPath) return '';
+            let dir = relPath.slice(0, relPath.length - name.length);
+            dir = dir.replace(/\/+$/, '');
+            if (!dir || !dir.includes('/')) return '';
+            return dir.split('/').slice(1).join('/');
+        }
+
+        async function addFiles(fileList, mode) {
+            const incoming = Array.from(fileList || []);
+            if (!incoming.length) return;
+
+            if (mode === 'replace' && state.files.length) {
+                const ok = window.confirm(`当前题库已有 ${state.files.length} 个文件。选择文件夹将替换它们，是否继续？`);
+                if (!ok) return;
+                clearLibrary(false);
+            }
+
+            const skipped = { ext: 0, empty: 0, notPdf: 0, dup: 0, sub: 0 };
+            const fingerprints = new Set(state.files.map(f => f.file.name + '\u0000' + f.file.size + '\u0000' + f.file.lastModified));
+            const pending = [];
+
+            for (const f of incoming) {
+                if (!/\.pdf$/i.test(f.name)) { skipped.ext++; continue; }
+                // 浏览器选择文件夹时会递归返回子文件夹内容：只收录直接子文件
+                const rel = f.webkitRelativePath || '';
+                if (rel && rel.slice(0, -f.name.length - 1).includes('/')) { skipped.sub++; continue; }
+                if (f.size === 0) { skipped.empty++; continue; }
+                const fp = f.name + '\u0000' + f.size + '\u0000' + f.lastModified;
+                if (fingerprints.has(fp)) { skipped.dup++; continue; }
+                pending.push({ file: f, fp });
+            }
+
+            // 内容校验：PDF 魔数 %PDF-
+            const checked = await Promise.all(pending.map(async (item) => {
+                try {
+                    const head = await item.file.slice(0, 5).text();
+                    return head === '%PDF-' ? item : { ...item, bad: true };
+                } catch (e) {
+                    return { ...item, bad: true };
+                }
+            }));
+
+            const addedNames = [];
+            for (const item of checked) {
+                if (item.bad) { skipped.notPdf++; continue; }
+                if (fingerprints.has(item.fp)) { skipped.dup++; continue; }
+                fingerprints.add(item.fp);
+                const relPath = item.file.webkitRelativePath || '';
+                const entry = {
+                    id: 'f' + (++uidSeq),
+                    file: item.file,
+                    name: item.file.name,
+                    displayName: stripPdfExt(item.file.name),
+                    dirLabel: formatDirLabel(relPath, item.file.name),
+                    size: item.file.size,
+                };
+                state.files.push(entry);
+                addedNames.push(entry.displayName);
+            }
+
+            renderLibrary();
+            renderProgress();
+
+            const parts = [];
+            if (addedNames.length) parts.push(`已收录 ${addedNames.length} 个 PDF`);
+            if (skipped.dup) parts.push(`跳过 ${skipped.dup} 个重复文件`);
+            if (skipped.ext) parts.push(`跳过 ${skipped.ext} 个非 PDF 文件`);
+            if (skipped.notPdf) parts.push(`${skipped.notPdf} 个文件内容不是有效 PDF（已跳过）`);
+            if (skipped.empty) parts.push(`跳过 ${skipped.empty} 个空文件`);
+            if (skipped.sub) parts.push(`跳过 ${skipped.sub} 个子文件夹中的文件（仅收录直接子文件）`);
+
+            if (parts.length) {
+                toast(parts.join('；'), 4200);
+            } else {
+                toast('没有新增文件');
+            }
+        }
+
+        function clearLibrary(notify = true) {
+            state.files.forEach(f => { /* File objects are GC'd with the array */ });
+            releasePdfUrl();
+            state.files = [];
+            state.drawnIds = [];
+            state.currentId = null;
+            els.result.classList.remove('show');
+            els.previewArea.innerHTML = '';
+            renderLibrary();
+            renderProgress();
+            if (notify) toast('题库已清空');
+        }
+
+        function removeFile(id) {
+            const idx = state.files.findIndex(f => f.id === id);
+            if (idx < 0) return;
+            const [removed] = state.files.splice(idx, 1);
+            state.drawnIds = state.drawnIds.filter(d => d !== id);
+            if (state.currentId === id) {
+                releasePdfUrl();
+                state.currentId = null;
+                els.result.classList.remove('show');
+                els.previewArea.innerHTML = '';
+                toast(`已移除「${removed.displayName}」`);
+            }
+            renderLibrary();
+            renderProgress();
+        }
+
+        function renderLibrary() {
+            const list = els.fileList;
+            list.innerHTML = '';
+            els.libraryCount.textContent = String(state.files.length);
+            els.fileEmpty.hidden = state.files.length > 0;
+            els.clearBtn.disabled = state.files.length === 0;
+            updateDrawAvailability();
+
+            const dupNames = new Set();
+            const seen = new Set();
+            state.files.forEach(f => {
+                if (seen.has(f.displayName)) dupNames.add(f.displayName);
+                seen.add(f.displayName);
+            });
+
+            state.files.forEach((f, i) => {
+                const chip = document.createElement('span');
+                chip.className = 'file-chip';
+                chip.title = f.dirLabel ? `${f.dirLabel}/${f.name}` : f.name;
+
+                const idx = document.createElement('span');
+                idx.className = 'chip-index';
+                idx.textContent = pad2(i + 1);
+
+                const name = document.createElement('span');
+                name.className = 'chip-name' + (dupNames.has(f.displayName) ? ' duplicated' : '');
+                name.textContent = f.displayName;
+
+                const rm = document.createElement('button');
+                rm.type = 'button';
+                rm.className = 'chip-remove';
+                rm.setAttribute('aria-label', `移除 ${f.displayName}`);
+                rm.textContent = '×';
+                rm.addEventListener('click', () => removeFile(f.id));
+
+                chip.append(idx, name, rm);
+                list.appendChild(chip);
+            });
+        }
+
+        function updateDrawAvailability() {
+            const empty = state.files.length === 0;
+            els.drawBtn.disabled = empty || state.isDrawing;
+            els.drawHint.textContent = empty
+                ? '先在上方导入 PDF 题库'
+                : '空格或回车键也可抽签';
+        }
+
+        /* ================= Progress grid ================= */
+        function renderProgress() {
+            const grid = els.progressGrid;
+            grid.innerHTML = '';
+            els.progressCount.textContent = String(state.drawnIds.length);
+            $('progressLabelText').textContent = state.noRepeatMode
+                ? 'Progress · 已抽完不重复'
+                : 'Progress · 本次已抽';
+
+            state.files.forEach((f, i) => {
+                const item = document.createElement('div');
+                item.className = 'progress-item';
+                if (state.drawnIds.includes(f.id)) item.classList.add('used');
+                if (f.id === state.currentId) item.classList.add('current');
+                item.textContent = String(i + 1);
+                item.title = f.displayName;
+                grid.appendChild(item);
+            });
+        }
+
+        /* ================= Draw ================= */
+        function availablePool() {
+            if (state.noRepeatMode) {
+                return state.files.filter(f => !state.drawnIds.includes(f.id));
+            }
+            return state.files.slice();
+        }
+
+        function draw() {
+            if (state.isDrawing) return;
+
+            const pool = availablePool();
+            if (!pool.length) {
+                if (!state.files.length) {
+                    toast('题库为空：请先导入 PDF 文件');
+                } else {
+                    if (window.confirm('所有题目都已抽完。是否重置后重新开始？')) {
+                        state.drawnIds = [];
+                        renderProgress();
+                        toast('已重置，可以重新抽签');
+                    }
+                }
+                return;
+            }
+
+            // 用户手势栈内同步预开窗口，避免动画结束后打开被弹窗拦截
+            state.preOpenWin = null;
+            try {
+                state.preOpenWin = window.open('about:blank', '_blank');
+            } catch (e) { /* 被拦截时走页面内兜底按钮 */ }
+
+            state.isDrawing = true;
+            els.drawBtn.disabled = true;
+
+            // 先定最终结果，动画仅作视觉过渡，结束时显示与打开的必然一致
+            const finalEntry = pool[pickIndex(pool.length)];
+
+            els.result.classList.add('show');
+            els.resultTopic.classList.add('spinning');
+            els.resultNote.textContent = '';
+
+            let spinCount = 0;
+            const spinStart = Date.now();
+            const spinInterval = setInterval(() => {
+                const tmp = state.files[pickIndex(state.files.length)];
+                if (tmp) {
+                    els.resultNumber.textContent = pad2(state.files.indexOf(tmp) + 1);
+                    els.resultTopic.textContent = tmp.displayName;
+                }
+                spinCount++;
+
+                // 时间基准兜底：标签页被切走时 timer 节流，到点必须落定，不能让用户等
+                if (spinCount >= 12 || Date.now() - spinStart >= 900) {
+                    clearInterval(spinInterval);
+                    setTimeout(() => {
+                        state.drawnIds.push(finalEntry.id);
+                        state.currentId = finalEntry.id;
+                        revealResult(finalEntry);
+                        state.isDrawing = false;
+                        updateDrawAvailability();
+                        els.btnText.textContent = '再抽一次';
+                    }, 200);
+                }
+            }, 60);
+        }
+
+        function releasePdfUrl() {
+            if (state.pdfUrl) {
+                URL.revokeObjectURL(state.pdfUrl);
+                state.pdfUrl = null;
+            }
+        }
+
+        function revealResult(entry) {
+            releasePdfUrl();
+            state.pdfUrl = URL.createObjectURL(entry.file);
+
+            const idx = state.files.indexOf(entry);
+            els.resultTopic.classList.remove('spinning');
+            els.resultNumber.textContent = pad2(idx + 1);
+            els.resultTopic.textContent = entry.displayName;
+            renderProgress();
+
+            // 打开 PDF：优先写入预开窗口
+            let opened = false;
+            const win = state.preOpenWin;
+            state.preOpenWin = null;
+            if (win && !win.closed) {
+                try {
+                    win.location.href = state.pdfUrl;
+                    opened = true;
+                } catch (e) { opened = false; }
+            }
+
+            els.openPdfBtn.hidden = opened;
+            els.resultNote.textContent = opened
+                ? '已在新标签页打开。若浏览器拦截了弹窗，可点「下载 PDF」，或重新抽取。'
+                : (entry.dirLabel ? `来自 ${entry.dirLabel}/ · ` : '') + '点击按钮在新标签页阅读，或直接下载。';
+
+            els.downloadPdfBtn.href = state.pdfUrl;
+            els.downloadPdfBtn.setAttribute('download', entry.name);
+            els.openPdfBtn.onclick = () => {
+                const url = URL.createObjectURL(entry.file);
+                window.open(url, '_blank');
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+            };
+
+            renderPreview(entry);
+        }
+
+        function renderPreview(entry) {
+            els.previewArea.innerHTML = '';
+            if (isMobile) {
+                const tip = document.createElement('div');
+                tip.className = 'preview-fallback';
+                tip.textContent = '手机浏览器对页面内嵌 PDF 预览支持不稳定，请点击上方「阅读 PDF」在新标签页打开，效果更可靠。';
+                els.previewArea.appendChild(tip);
+                return;
+            }
+            const frame = document.createElement('iframe');
+            frame.className = 'preview-frame';
+            frame.title = `PDF 预览：${entry.displayName}`;
+            frame.src = state.pdfUrl;
+            els.previewArea.appendChild(frame);
+        }
+
+        /* ================= Timer ================= */
+        const timer = { total: 60, remain: 60, running: false, endAt: 0, raf: 0 };
+        const presetPrep = $('presetPrep'), presetSpeech = $('presetSpeech');
+
+        function fmtTime(sec) {
+            const m = Math.floor(Math.max(sec, 0) / 60);
+            const s = Math.max(sec, 0) % 60;
+            return `${m}:${pad2(s)}`;
+        }
+
+        function renderTimer() {
+            els.timerDisplay.textContent = fmtTime(Math.ceil(timer.remain));
+            els.timerDisplay.classList.toggle('warning', timer.running && timer.remain <= 30 && timer.remain > 0);
+            const done = timer.remain <= 0;
+            els.timerDisplay.classList.toggle('timeout', done);
+            if (done && timer.running) {
+                stopTimerTick();
+                timer.running = false;
+                timer.remain = 0;
+                els.timerStartBtn.textContent = '开始';
+                els.timerDisplay.textContent = '0:00';
+            }
+        }
+
+        function stopTimerTick() { if (timer.raf) { clearInterval(timer.raf); timer.raf = 0; } }
+
+        function resetTimer() {
+            stopTimerTick();
+            timer.running = false;
+            timer.remain = timer.total;
+            els.timerStartBtn.textContent = '开始';
+            els.timerDisplay.classList.remove('warning', 'timeout');
+            renderTimer();
+        }
+
+        function toggleTimer() {
+            if (timer.running) {
+                stopTimerTick();
+                timer.running = false;
+                els.timerStartBtn.textContent = '继续';
+                els.timerDisplay.classList.remove('warning');
+            } else {
+                if (timer.remain <= 0) timer.remain = timer.total;
+                timer.endAt = Date.now() + timer.remain * 1000;
+                timer.running = true;
+                els.timerStartBtn.textContent = '暂停';
+                timer.raf = setInterval(() => {
+                    timer.remain = (timer.endAt - Date.now()) / 1000;
+                    renderTimer();
+                }, 250);
+            }
+        }
+
+        function setPreset(seconds, btn) {
+            timer.total = seconds;
+            [presetPrep, presetSpeech].forEach(b => b.classList.toggle('active', b === btn));
+            resetTimer();
+        }
+
+        presetPrep.addEventListener('click', () => setPreset(60, presetPrep));
+        presetSpeech.addEventListener('click', () => setPreset(300, presetSpeech));
+        els.timerStartBtn.addEventListener('click', toggleTimer);
+        els.timerResetBtn.addEventListener('click', resetTimer);
+        renderTimer();
+
+        /* ================= Cover image ================= */
+        function showCover(dataUrl) {
+            els.heroImg.src = dataUrl;
+            els.heroMediaWrap.hidden = false;
+            els.logoSlot.hidden = true;
+            els.heroUploadLink.hidden = true;
+        }
+
+        function hideCover() {
+            els.heroMediaWrap.hidden = true;
+            els.heroImg.removeAttribute('src'); // 空 src 会被解析为当前页 URL，必须移除属性
+            const logoVisible = els.logoImg.complete && els.logoImg.naturalWidth > 0;
+            els.logoImg.hidden = !logoVisible;
+            els.logoSlot.hidden = !logoVisible;
+            els.heroUploadLink.hidden = false;
+        }
+
+        function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = src;
+            });
+        }
+
+        function readAsDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = reject;
+                r.readAsDataURL(file);
+            });
+        }
+
+        async function handleCoverFile(file) {
+            if (!file || !/^image\//.test(file.type)) { toast('请选择图片文件'); return; }
+            try {
+                let dataUrl = await readAsDataURL(file);
+                const img = await loadImage(dataUrl);
+                const MAX = 1600, LIMIT = 1.5 * 1024 * 1024;
+                if (img.width > MAX || img.height > MAX || file.size > LIMIT) {
+                    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff'; // 防透明 PNG 转 JPEG 变黑底
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                }
+                showCover(dataUrl);
+                try {
+                    localStorage.setItem(COVER_KEY, dataUrl);
+                } catch (e) {
+                    toast('图片较大，仅本次会话显示（未保存到浏览器）');
+                }
+            } catch (e) {
+                toast('图片读取失败，请换一张试试');
+            }
+        }
+
+        els.heroUploadLink.addEventListener('click', () => els.imageInput.click());
+        els.heroChangeBtn.addEventListener('click', () => els.imageInput.click());
+        els.imageInput.addEventListener('change', () => {
+            if (els.imageInput.files && els.imageInput.files[0]) {
+                handleCoverFile(els.imageInput.files[0]);
+                els.imageInput.value = '';
+            }
+        });
+        els.heroResetBtn.addEventListener('click', () => {
+            try { localStorage.removeItem(COVER_KEY); } catch (e) {}
+            hideCover();
+            toast('已恢复默认首页');
+        });
+        els.heroImg.addEventListener('error', () => {
+            try { localStorage.removeItem(COVER_KEY); } catch (e) {}
+            hideCover();
+        });
+
+        // 启动时：优先本地 logo.png，其次 localStorage 头图（两者互斥，上传图优先）
+        els.logoImg.addEventListener('load', () => {
+            els.logoImg.hidden = false;
+            if (els.heroMediaWrap.hidden) els.logoSlot.hidden = false;
+        });
+        els.logoImg.addEventListener('error', () => {
+            els.logoImg.hidden = true;
+            if (els.heroMediaWrap.hidden) els.logoSlot.hidden = true;
+        });
+        if (els.logoImg.complete && els.logoImg.naturalWidth > 0) {
+            els.logoImg.hidden = false;
+            if (els.heroMediaWrap.hidden) els.logoSlot.hidden = false;
+        }
+
+        function restoreCover() {
+            let saved = null;
+            try { saved = localStorage.getItem(COVER_KEY); } catch (e) {}
+            if (saved) showCover(saved);
+        }
+
+        /* ================= Import wiring ================= */
+        els.pickFolderBtn.addEventListener('click', () => els.folderInput.click());
+        els.pickFilesBtn.addEventListener('click', () => els.filesInput.click());
+        els.clearBtn.addEventListener('click', () => clearLibrary(true));
+
+        els.folderInput.addEventListener('change', () => {
+            if (els.folderInput.files.length) addFiles(els.folderInput.files, 'replace');
+            els.folderInput.value = '';
+        });
+
+        els.filesInput.addEventListener('change', () => {
+            if (els.filesInput.files.length) addFiles(els.filesInput.files, 'append');
+            els.filesInput.value = '';
+        });
+
+        // Drag & drop（追加）
+        ['dragenter', 'dragover'].forEach(ev =>
+            els.dropHint.addEventListener(ev, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                els.dropHint.classList.add('dragover');
+            })
+        );
+        ['dragleave', 'drop'].forEach(ev =>
+            els.dropHint.addEventListener(ev, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                els.dropHint.classList.remove('dragover');
+            })
+        );
+        document.addEventListener('dragover', (e) => e.preventDefault());
+        document.addEventListener('drop', (e) => e.preventDefault());
+
+        els.dropHint.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (!dt) return;
+            const items = dt.items ? Array.from(dt.items) : [];
+            const entries = items.map(it => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+            if (entries.length) {
+                const collected = [];
+                let pendingEntries = entries.length;
+                entries.forEach(entry => {
+                    walkEntry(entry, collected, () => {
+                        if (--pendingEntries === 0 && collected.length) addFiles(collected, 'append');
+                    });
+                });
+            } else if (dt.files.length) {
+                addFiles(dt.files, 'append');
+            }
+        });
+
+        // 仅遍历所选文件夹的直接子文件（与“选择文件夹”行为一致）
+        function walkEntry(entry, out, done) {
+            if (entry.isFile) {
+                entry.file(f => { out.push(f); done(); }, done);
+            } else if (entry.isDirectory) {
+                const reader = entry.createReader();
+                const readBatch = () => {
+                    reader.readEntries(results => {
+                        const files = results.filter(r => r.isFile);
+                        let waiting = files.length;
+                        if (!waiting) return done();
+                        files.forEach(f =>
+                            f.file(file => { out.push(file); if (--waiting === 0) done(); },
+                                   () => { if (--waiting === 0) done(); })
+                        );
+                        // 子目录不入库：只收录直接子文件
+                    }, done);
+                };
+                readBatch();
+            } else { done(); }
+        }
+
+        /* ================= Draw wiring ================= */
+        Object.defineProperty(state, 'noRepeatMode', {
+            get() { return els.noRepeatToggle.checked; },
+        });
+        els.noRepeatToggle.addEventListener('change', () => {
+            renderProgress();
+            toast(els.noRepeatToggle.checked ? '已开启不重复抽取' : '已恢复默认：每次独立随机');
+        });
+
+        els.drawBtn.addEventListener('click', draw);
+        els.redrawBtn.addEventListener('click', draw);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                if (els.rulesModal.classList.contains('show')) return;
+                const tag = (e.target.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'button' || tag === 'a' || tag === 'textarea') return;
+                e.preventDefault();
+                draw();
+            }
+            if (e.code === 'Escape' && els.rulesModal.classList.contains('show')) {
+                els.rulesModal.classList.remove('show');
+            }
+        });
+
+        /* ================= Rules modal ================= */
+        els.rulesLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            els.rulesModal.classList.add('show');
+        });
+        els.modalClose.addEventListener('click', () => els.rulesModal.classList.remove('show'));
+        els.rulesModal.addEventListener('click', (e) => {
+            if (e.target === els.rulesModal) els.rulesModal.classList.remove('show');
+        });
+
+        /* ================= Init ================= */
+        renderLibrary();
+        renderProgress();
+        restoreCover();
+
+        // 自动化验证钩子（只读）
+        window.__impromptu = {
+            pickIndex,
+            getFiles: () => state.files.map(f => ({ id: f.id, name: f.name, displayName: f.displayName })),
+            addFiles,
+            clearLibrary,
+            draw,
+            resetDrawn: () => { state.drawnIds = []; renderProgress(); },
+            getState: () => ({ files: state.files.length, drawn: state.drawnIds.length, drawing: state.isDrawing }),
+        };
+    })();
+    </script>
+</body>
+</html>
