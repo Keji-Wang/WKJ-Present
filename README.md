@@ -62,8 +62,8 @@
 不需要安装任何东西：
 
 ```bash
-git clone https://github.com/Keji-Wang/WKJ-Present.git
-cd WKJ-Present
+git clone https://github.com/Keji-Wang/wkj-present.git
+cd wkj-present
 # 起一个本地静态服务（打开即自动加载内置题库）：
 python -m http.server 8000
 # 打开 http://localhost:8000
@@ -73,7 +73,7 @@ python -m http.server 8000
 
 ### 部署
 
-纯静态，任意静态托管均可。GitHub Pages：仓库设置里把 `main` 分支根目录设为 Pages 源即可。所有资源都是相对路径，部署在子路径（如 `https://<user>.github.io/WKJ-Present/`）也能正常工作。
+纯静态，任意静态托管均可。GitHub Pages：仓库设置里把 `main` 分支根目录设为 Pages 源即可。所有资源都是相对路径，部署在子路径（如 `https://<user>.github.io/wkj-present/`）也能正常工作。
 
 ## 隐私与数据边界
 
@@ -97,7 +97,7 @@ python -m http.server 8000
 ## 目录结构
 
 ```
-WKJ-Present/
+wkj-present/
 ├── index.html    # 全部应用（HTML + CSS + JS，单文件零依赖）
 ├── library/      # 12 套真实训练用默认题库（AI 生成的虚构主题 PDF）+ manifest.json 清单
 ├── prompts/      # PPT 内容生成提示词（元提示词 + 实例效果）
