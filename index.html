@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="即兴演讲 · Impromptu Speech —— 从本地 PDF 题库中随机抽题并立即阅读的演讲训练工具。纯静态、纯前端，文件不上传服务器。">
-    <title>即兴演讲 · Impromptu Speech</title>
+    <meta name="description" content="即兴演讲 · WKJ-Present —— 双角色的 PDF 随机演讲训练工具：组织者维护题库与规则，演讲者滚动抽题、立即阅读、计时开讲。纯静态、纯前端，文件不上传服务器。">
+    <title>即兴演讲 · WKJ-Present</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='12' y='8' width='40' height='48' rx='4' fill='%23f5f0e6' stroke='%232c2c2c' stroke-width='3'/%3E%3Crect x='20' y='18' width='24' height='4' fill='%23c45a3b'/%3E%3Crect x='20' y='28' width='18' height='3' fill='%232c2c2c'/%3E%3Crect x='20' y='36' width='20' height='3' fill='%232c2c2c'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,9 +19,13 @@
             --color-accent: #c45a3b;
             --color-accent-hover: #a84a2f;
             --color-border: #e8e0d5;
-            --color-success: #5a8c5a;
             --font-display: 'Cormorant Garamond', Georgia, serif;
             --font-body: 'Inter', -apple-system, sans-serif;
+            --reel-h: 88px;
+        }
+
+        @media (max-width: 640px) {
+            :root { --reel-h: 60px; }
         }
 
         * {
@@ -59,7 +63,6 @@
             z-index: 1000;
         }
 
-        /* Ambient background glow */
         .ambient-glow {
             position: fixed;
             width: 600px;
@@ -78,148 +81,254 @@
             50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
         }
 
-        .container {
-            flex: 1;
-            width: 100%;
-            max-width: 760px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* ============ Header ============ */
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            animation: fadeInDown 1s ease;
-            width: 100%;
-        }
-
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
 
-        .hero-media-wrap {
+        @keyframes riseIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============ Topbar ============ */
+        .topbar {
+            width: 100%;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 20px 20px 0;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 16px;
+            justify-content: space-between;
+            gap: 16px;
+            position: relative;
+            z-index: 2;
+            animation: fadeIn 0.8s ease;
         }
 
-        .hero-media {
-            display: inline-flex;
+        .brand {
+            display: flex;
             align-items: center;
-            justify-content: center;
-            max-width: min(560px, 100%);
+            gap: 12px;
+            min-width: 0;
         }
 
-        .hero-media img {
-            max-width: 100%;
-            max-height: 200px;
+        .brand-logo {
+            height: 40px;
+            max-width: 160px;
             object-fit: contain;
             display: block;
+            cursor: pointer;
         }
 
-        .hero-actions {
-            display: flex;
-            gap: 12px;
-        }
-
-        .logo-container {
-            margin-bottom: 20px;
-            padding: 8px 16px;
-            display: inline-block;
-        }
-
-        .logo {
-            width: 100px;
-            height: auto;
-            display: block;
+        .brand-text {
+            cursor: pointer;
+            min-width: 0;
         }
 
         .brand-name {
             font-family: var(--font-display);
-            font-size: 2.5rem;
-            font-weight: 500;
-            letter-spacing: 0.3em;
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: 0.22em;
             color: var(--color-text-primary);
-            margin-bottom: 8px;
+            line-height: 1.2;
+            white-space: nowrap;
         }
 
         .brand-tagline {
-            font-size: 0.85rem;
+            font-size: 0.62rem;
             font-weight: 300;
-            letter-spacing: 0.2em;
+            letter-spacing: 0.24em;
             color: var(--color-text-secondary);
             text-transform: uppercase;
+            white-space: nowrap;
         }
 
-        .hero-upload-link {
-            margin-top: 12px;
-            background: none;
-            border: none;
+        .mode-switch {
+            display: flex;
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            background: var(--color-surface);
+            padding: 3px;
+            flex-shrink: 0;
+        }
+
+        .mode-btn {
             font-family: var(--font-body);
             font-size: 0.75rem;
+            letter-spacing: 0.12em;
+            padding: 6px 16px;
+            border: none;
+            border-radius: 999px;
+            background: transparent;
             color: var(--color-text-secondary);
-            letter-spacing: 0.1em;
             cursor: pointer;
-            border-bottom: 1px dashed var(--color-border);
-            padding: 2px 4px;
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
         }
 
-        .hero-upload-link:hover {
-            color: var(--color-accent);
-            border-bottom-color: var(--color-accent);
+        .mode-btn.active {
+            background: var(--color-accent);
+            color: #fff;
         }
 
-        /* ============ Panels ============ */
-        .panel {
+        .mode-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ============ Views ============ */
+        .view {
+            flex: 1;
             width: 100%;
-            background: var(--color-surface);
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-            animation: fadeIn 1s ease 0.15s both;
+            position: relative;
+            z-index: 1;
         }
 
-        .panel-title {
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.18em;
+        /* ============ Speaker stage ============ */
+        .stage {
+            max-width: 760px;
+            margin: 0 auto;
+            min-height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 20px 48px;
+            gap: 0;
+        }
+
+        .stage-status {
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.22em;
             text-transform: uppercase;
             color: var(--color-text-secondary);
-            margin-bottom: 16px;
+            margin-bottom: 18px;
+            text-align: center;
+            animation: fadeIn 0.9s ease;
+        }
+
+        .stage-status .accent { color: var(--color-accent); }
+
+        /* Rolling reel */
+        .reel {
+            width: 100%;
+            max-width: 640px;
+            height: var(--reel-h);
+            overflow: hidden;
+            position: relative;
+            border-top: 1px solid var(--color-border);
+            border-bottom: 1px solid var(--color-border);
+            background: linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(255,255,255,0.9));
+            animation: riseIn 0.7s ease both;
+        }
+
+        .reel::before, .reel::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 26%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .reel::before { top: 0; background: linear-gradient(to bottom, #f7f2e9, transparent); }
+        .reel::after { bottom: 0; background: linear-gradient(to top, #f7f2e9, transparent); }
+
+        .reel-strip {
+            will-change: transform;
+        }
+
+        .reel-row {
+            height: var(--reel-h);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+            font-family: var(--font-display);
+            font-size: 1.55rem;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
         }
 
-        .panel-title .count {
+        .reel-row .row-no {
+            font-size: 0.95rem;
             color: var(--color-accent);
-            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
         }
 
-        .import-row {
+        .reel-row .row-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 12px;
+        }
+
+        .reel-row.idle-row {
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+            font-family: var(--font-body);
+            letter-spacing: 0.3em;
+            opacity: 0.75;
+        }
+
+        /* Landed result */
+        .landed {
+            width: 100%;
+            max-width: 720px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: riseIn 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+        }
+
+        .landed-no {
+            font-family: var(--font-display);
+            font-size: 4.2rem;
+            font-weight: 300;
+            color: var(--color-accent);
+            line-height: 1;
+            margin: 6px 0 4px;
+        }
+
+        .landed-caption {
+            font-size: 0.7rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+        }
+
+        .landed-title {
+            font-size: 1.7rem;
+            font-weight: 300;
+            letter-spacing: 0.04em;
+            line-height: 1.5;
+            text-align: center;
+            max-width: 600px;
+            margin: 10px 0 22px;
+            word-break: break-all;
+        }
+
+        .landed-actions {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
+            justify-content: center;
         }
 
+        .landed-note {
+            margin-top: 12px;
+            font-size: 0.72rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.05em;
+            text-align: center;
+        }
+
+        /* Buttons */
         .btn {
             font-family: var(--font-body);
             font-size: 0.85rem;
@@ -234,16 +343,8 @@
             transition: all 0.3s ease;
         }
 
-        .btn:hover {
-            border-color: var(--color-accent);
-            color: var(--color-accent);
-            background: var(--color-surface-hover);
-        }
-
-        .btn:disabled {
-            opacity: 0.45;
-            cursor: not-allowed;
-        }
+        .btn:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-surface-hover); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
         .btn-primary {
             border-color: var(--color-accent);
@@ -257,7 +358,176 @@
             color: #fff;
         }
 
-        /* Drop zone */
+        /* Big draw button */
+        .draw-btn {
+            margin-top: 30px;
+            background: var(--color-surface);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border);
+            padding: 22px 76px;
+            font-size: 1.1rem;
+            font-family: var(--font-body);
+            font-weight: 400;
+            letter-spacing: 0.18em;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .draw-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--color-accent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .draw-btn span { position: relative; z-index: 1; }
+        .draw-btn:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-surface-hover); }
+        .draw-btn:hover:not(:disabled)::before { opacity: 0.1; }
+        .draw-btn:active:not(:disabled) { transform: scale(0.98); }
+        .draw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .draw-hint {
+            margin-top: 14px;
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.08em;
+        }
+
+        /* Preview */
+        .preview-frame {
+            margin-top: 24px;
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-surface-hover);
+        }
+
+        .preview-fallback {
+            margin-top: 24px;
+            width: 100%;
+            max-width: 640px;
+            border: 1px dashed var(--color-border);
+            border-radius: 6px;
+            padding: 18px;
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        /* Timer */
+        .timer-section {
+            width: 100%;
+            max-width: 640px;
+            margin-top: 28px;
+            padding-top: 22px;
+            border-top: 1px dashed var(--color-border);
+            text-align: center;
+            animation: fadeIn 0.8s ease 0.2s both;
+        }
+
+        .timer-presets {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        .timer-preset {
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            padding: 6px 14px;
+            border: 1px solid var(--color-border);
+            border-radius: 14px;
+            background: var(--color-surface);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .timer-preset.active { border-color: var(--color-accent); color: var(--color-accent); }
+
+        .timer-display {
+            font-family: var(--font-display);
+            font-size: 3.6rem;
+            font-weight: 300;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            transition: color 0.4s ease;
+        }
+
+        .timer-display.warning { color: var(--color-accent); }
+        .timer-display.timeout { animation: timeout-blink 1s ease infinite; }
+
+        @keyframes timeout-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+
+        .timer-controls {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        /* ============ Organizer view ============ */
+        .org {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+
+        .org-heading {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .org-sub {
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 24px;
+            line-height: 1.7;
+        }
+
+        .panel {
+            width: 100%;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 22px;
+            margin-bottom: 20px;
+            animation: riseIn 0.6s ease both;
+        }
+
+        .panel-title {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .panel-title .count { color: var(--color-accent); font-weight: 600; }
+
+        .import-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
         .drop-hint {
             margin-top: 14px;
             border: 1px dashed var(--color-border);
@@ -276,13 +546,7 @@
             background: rgba(196, 90, 59, 0.05);
         }
 
-        /* File chips */
-        .file-list {
-            margin-top: 16px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+        .file-list { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
 
         .file-chip {
             display: inline-flex;
@@ -311,9 +575,7 @@
             max-width: 340px;
         }
 
-        .file-chip .chip-name.duplicated {
-            border-bottom: 1px dotted var(--color-accent);
-        }
+        .file-chip .chip-name.duplicated { border-bottom: 1px dotted var(--color-accent); }
 
         .file-chip .chip-remove {
             background: none;
@@ -327,9 +589,7 @@
             transition: color 0.2s ease;
         }
 
-        .file-chip .chip-remove:hover {
-            color: var(--color-accent);
-        }
+        .file-chip .chip-remove:hover { color: var(--color-accent); }
 
         .file-empty {
             margin-top: 14px;
@@ -347,84 +607,24 @@
             line-height: 1.9;
         }
 
-        /* ============ Draw section ============ */
-        .draw-section {
-            animation: fadeIn 1s ease 0.25s both;
+        .setting-row {
             display: flex;
-            flex-direction: column;
             align-items: center;
-            margin-bottom: 8px;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
-        .draw-btn {
-            background: var(--color-surface);
-            color: var(--color-text-primary);
-            border: 1px solid var(--color-border);
-            padding: 24px 80px;
-            font-size: 1.1rem;
-            font-family: var(--font-body);
-            font-weight: 400;
-            letter-spacing: 0.15em;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .draw-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--color-accent);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
-
-        .draw-btn span {
-            position: relative;
-            z-index: 1;
-        }
-
-        .draw-btn:hover:not(:disabled) {
-            border-color: var(--color-accent);
-            background: var(--color-surface-hover);
-        }
-
-        .draw-btn:hover:not(:disabled)::before {
-            opacity: 0.1;
-        }
-
-        .draw-btn:active:not(:disabled) {
-            transform: scale(0.98);
-        }
-
-        .draw-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .draw-hint {
-            margin-top: 12px;
-            font-size: 0.75rem;
-            color: var(--color-text-secondary);
-            letter-spacing: 0.08em;
-        }
-
-        .draw-options {
-            margin-top: 16px;
+        .toggle-label {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             color: var(--color-text-secondary);
             user-select: none;
             cursor: pointer;
         }
 
-        .draw-options input[type="checkbox"] {
+        .toggle-label input[type="checkbox"] {
             appearance: none;
             -webkit-appearance: none;
             width: 34px;
@@ -438,210 +638,40 @@
             flex-shrink: 0;
         }
 
-        .draw-options input[type="checkbox"]::after {
+        .toggle-label input[type="checkbox"]::after {
             content: '';
             position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 12px;
-            height: 12px;
+            top: 2px; left: 2px;
+            width: 12px; height: 12px;
             border-radius: 50%;
             background: var(--color-text-secondary);
             transition: all 0.25s ease;
         }
 
-        .draw-options input[type="checkbox"]:checked {
+        .toggle-label input[type="checkbox"]:checked {
             background: var(--color-accent);
             border-color: var(--color-accent);
         }
 
-        .draw-options input[type="checkbox"]:checked::after {
-            left: 18px;
-            background: #fff;
-        }
-
-        /* ============ Result ============ */
-        .result {
-            margin-top: 36px;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            pointer-events: none;
-        }
-
-        .result.show {
-            opacity: 1;
-            transform: translateY(0);
-            pointer-events: auto;
-        }
-
-        .result-number {
-            font-family: var(--font-display);
-            font-size: 5rem;
-            font-weight: 300;
-            color: var(--color-accent);
-            line-height: 1;
-            margin-bottom: 12px;
-        }
-
-        .result-topic {
-            font-size: 1.5rem;
-            font-weight: 300;
-            color: var(--color-text-primary);
-            text-align: center;
-            max-width: 560px;
-            line-height: 1.6;
-            letter-spacing: 0.05em;
-            word-break: break-all;
-        }
-
-        .result-topic.spinning {
-            color: var(--color-text-secondary);
-        }
-
-        .result-actions {
-            margin-top: 22px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .result-note {
-            margin-top: 12px;
-            font-size: 0.72rem;
-            color: var(--color-text-secondary);
-            letter-spacing: 0.05em;
-        }
-
-        /* Embedded preview (desktop) */
-        .preview-frame {
-            margin-top: 20px;
-            width: 100%;
-            max-width: 640px;
-            height: 480px;
-            border: 1px solid var(--color-border);
-            border-radius: 6px;
-            background: var(--color-surface-hover);
-        }
-
-        .preview-fallback {
-            margin-top: 20px;
-            width: 100%;
-            max-width: 640px;
-            border: 1px dashed var(--color-border);
-            border-radius: 6px;
-            padding: 18px;
-            font-size: 0.78rem;
-            color: var(--color-text-secondary);
-            text-align: center;
-            line-height: 1.8;
-        }
-
-        /* ============ Timer ============ */
-        .timer-section {
-            width: 100%;
-            text-align: center;
-            margin-top: 40px;
-            animation: fadeIn 1s ease 0.35s both;
-        }
-
-        .timer-presets {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            margin-bottom: 14px;
-        }
-
-        .timer-preset {
-            font-family: var(--font-body);
-            font-size: 0.75rem;
-            letter-spacing: 0.1em;
-            padding: 6px 14px;
-            border: 1px solid var(--color-border);
-            border-radius: 14px;
-            background: var(--color-surface);
-            color: var(--color-text-secondary);
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-
-        .timer-preset.active {
-            border-color: var(--color-accent);
-            color: var(--color-accent);
-        }
-
-        .timer-display {
-            font-family: var(--font-display);
-            font-size: 4rem;
-            font-weight: 300;
-            line-height: 1;
-            color: var(--color-text-primary);
-            font-variant-numeric: tabular-nums;
-            transition: color 0.4s ease;
-        }
-
-        .timer-display.warning {
-            color: var(--color-accent);
-        }
-
-        .timer-display.timeout {
-            animation: timeout-blink 1s ease infinite;
-        }
-
-        @keyframes timeout-blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.35; }
-        }
-
-        .timer-controls {
-            margin-top: 14px;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        /* ============ Progress ============ */
-        .progress-section {
-            margin-top: 48px;
-            width: 100%;
-            text-align: center;
-            animation: fadeIn 1s ease 0.4s both;
-        }
-
-        .progress-label {
-            font-size: 0.75rem;
-            font-weight: 400;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            color: var(--color-text-secondary);
-            margin-bottom: 16px;
-            text-align: center;
-        }
+        .toggle-label input[type="checkbox"]:checked::after { left: 18px; background: #fff; }
 
         .progress-grid {
+            margin-top: 16px;
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            justify-content: center;
-            max-width: 100%;
         }
 
         .progress-item {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.85rem;
-            font-family: var(--font-body);
+            font-size: 0.8rem;
             font-weight: 500;
             border: 1px solid var(--color-border);
-            background: var(--color-surface);
+            background: var(--color-surface-hover);
             color: var(--color-text-secondary);
             transition: all 0.3s ease;
         }
@@ -649,44 +679,59 @@
         .progress-item.used {
             background: var(--color-accent);
             border-color: var(--color-accent);
-            color: white;
+            color: #fff;
         }
 
-        .progress-item.current {
-            border-color: var(--color-accent);
-            animation: pulse 1s ease infinite;
+        /* Appearance panel */
+        .appearance-preview {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(196, 90, 59, 0.4); }
-            50% { box-shadow: 0 0 0 8px rgba(196, 90, 59, 0); }
+        .appearance-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border: 1px dashed var(--color-border);
+            border-radius: 6px;
+            min-height: 56px;
         }
+
+        .appearance-brand img { height: 32px; max-width: 140px; object-fit: contain; display: block; }
+        .appearance-brand .placeholder-text {
+            font-size: 0.72rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.1em;
+        }
+
+        .link-btn {
+            background: none;
+            border: none;
+            font-family: var(--font-body);
+            font-size: 0.78rem;
+            color: var(--color-text-secondary);
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            border-bottom: 1px dashed var(--color-border);
+            padding: 2px 2px;
+            transition: all 0.25s ease;
+        }
+
+        .link-btn:hover { color: var(--color-accent); border-bottom-color: var(--color-accent); }
 
         /* ============ Footer ============ */
         .footer {
-            padding: 24px;
+            padding: 22px;
             text-align: center;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--color-text-secondary);
-            letter-spacing: 0.1em;
+            letter-spacing: 0.08em;
             line-height: 2;
-        }
-
-        /* Rules link */
-        .rules-link {
-            margin-top: 16px;
-            font-size: 0.85rem;
-            color: var(--color-text-secondary);
-            cursor: pointer;
-            text-decoration: none;
-            border-bottom: 1px solid transparent;
-            transition: all 0.3s ease;
-            letter-spacing: 0.05em;
-        }
-
-        .rules-link:hover {
-            color: var(--color-accent);
-            border-bottom-color: var(--color-accent);
+            position: relative;
+            z-index: 1;
         }
 
         /* ============ Toast ============ */
@@ -720,18 +765,12 @@
             line-height: 1.6;
         }
 
-        .toast.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        .toast.show { opacity: 1; transform: translateY(0); }
 
         /* ============ Modal ============ */
         .modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background: rgba(0, 0, 0, 0.5);
             -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
@@ -744,10 +783,7 @@
             z-index: 1100;
         }
 
-        .modal-overlay.show {
-            opacity: 1;
-            visibility: visible;
-        }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
 
         .modal-content {
             background: var(--color-surface);
@@ -762,9 +798,7 @@
             transition: transform 0.3s ease;
         }
 
-        .modal-overlay.show .modal-content {
-            transform: translateY(0);
-        }
+        .modal-overlay.show .modal-content { transform: translateY(0); }
 
         .modal-header {
             display: flex;
@@ -779,7 +813,6 @@
             font-family: var(--font-display);
             font-size: 1.5rem;
             font-weight: 600;
-            color: var(--color-text-primary);
         }
 
         .modal-close {
@@ -788,7 +821,6 @@
             font-size: 1.5rem;
             color: var(--color-text-secondary);
             cursor: pointer;
-            padding: 0;
             width: 32px;
             height: 32px;
             display: flex;
@@ -797,199 +829,185 @@
             transition: color 0.2s ease;
         }
 
-        .modal-close:hover {
-            color: var(--color-accent);
-        }
+        .modal-close:hover { color: var(--color-accent); }
 
-        .modal-body {
-            color: var(--color-text-primary);
-            line-height: 1.7;
-        }
-
+        .modal-body { line-height: 1.7; }
         .modal-body h3 {
             font-family: var(--font-display);
             font-size: 1.2rem;
             font-weight: 600;
             color: var(--color-accent);
-            margin-top: 20px;
-            margin-bottom: 10px;
+            margin: 20px 0 10px;
         }
-
-        .modal-body h3:first-child {
-            margin-top: 0;
-        }
-
-        .modal-body p {
-            margin-bottom: 12px;
-            color: var(--color-text-primary);
-        }
-
-        .modal-body ul {
-            margin-left: 20px;
-            margin-bottom: 16px;
-        }
-
-        .modal-body li {
-            margin-bottom: 8px;
-            color: var(--color-text-primary);
-        }
+        .modal-body h3:first-child { margin-top: 0; }
+        .modal-body p { margin-bottom: 12px; }
+        .modal-body ul { margin-left: 20px; margin-bottom: 16px; }
+        .modal-body li { margin-bottom: 8px; }
 
         /* ============ Responsive ============ */
         @media (max-width: 640px) {
-            .container {
-                padding: 28px 14px;
+            .topbar {
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+                padding-top: 16px;
+                text-align: center;
             }
 
-            .brand-name {
-                font-size: 1.8rem;
-            }
+            .brand { flex-direction: column; gap: 6px; }
+            .brand-text { text-align: center; }
 
-            .panel {
-                padding: 18px;
-            }
+            .stage { min-height: 0; padding-top: 24px; }
 
-            .result-number {
-                font-size: 3.5rem;
-            }
+            .reel-row { font-size: 1.1rem; }
+            .landed-no { font-size: 3.2rem; }
+            .landed-title { font-size: 1.25rem; padding: 0 8px; }
 
-            .result-topic {
-                font-size: 1.2rem;
-                padding: 0 8px;
-            }
+            .draw-btn { width: 100%; padding: 20px 40px; font-size: 1rem; }
+            .landed-actions .btn { flex: 1 1 100%; }
+            .import-row .btn { flex: 1 1 100%; }
+            .file-chip .chip-name { max-width: 52vw; }
+            .preview-frame { height: 380px; }
+            .timer-display { font-size: 2.8rem; }
+        }
 
-            .draw-btn {
-                padding: 20px 48px;
-                font-size: 1rem;
-                width: 100%;
-            }
-
-            .import-row .btn {
-                flex: 1 1 100%;
-            }
-
-            .file-chip .chip-name {
-                max-width: 52vw;
-            }
-
-            .timer-display {
-                font-size: 3rem;
-            }
-
-            .progress-item {
-                width: 34px;
-                height: 34px;
-                font-size: 0.78rem;
-            }
-
-            .modal-content {
-                padding: 24px;
-            }
-
-            .preview-frame {
-                height: 380px;
-            }
+        @media (prefers-reduced-motion: reduce) {
+            .ambient-glow { animation: none; }
         }
     </style>
 </head>
 <body>
     <div class="ambient-glow"></div>
 
-    <div class="container">
-        <!-- ============ Header ============ -->
-        <header class="header">
-            <div class="hero-media-wrap" id="heroMediaWrap" hidden>
-                <div class="hero-media">
-                    <img id="heroImg" alt="自定义头图">
+    <header class="topbar">
+        <div class="brand">
+            <img src="logo.png" alt="" class="brand-logo" id="brandLogo" hidden>
+            <div class="brand-text" id="brandText" title="回到演讲台">
+                <div class="brand-name">即兴演讲</div>
+                <div class="brand-tagline">WKJ-Present · Impromptu Speech</div>
+            </div>
+        </div>
+        <nav class="mode-switch" aria-label="角色切换">
+            <button type="button" class="mode-btn active" id="modeStageBtn">演讲者</button>
+            <button type="button" class="mode-btn" id="modeOrgBtn">组织者</button>
+        </nav>
+    </header>
+
+    <!-- ============ 演讲者视图 ============ -->
+    <main class="view" id="viewStage">
+        <div class="stage">
+            <div class="stage-status" id="stageStatus">题库就绪 · <span class="accent" id="stageCount">0</span> 套题目</div>
+
+            <!-- 抽取滚轮：待机 / 滚动 -->
+            <div class="reel" id="reel" aria-live="polite">
+                <div class="reel-strip" id="reelStrip"></div>
+            </div>
+
+            <!-- 定格结果 -->
+            <div class="landed" id="landed" hidden>
+                <div class="landed-caption">抽取结果</div>
+                <div class="landed-no" id="landedNo"></div>
+                <h2 class="landed-title" id="landedTitle"></h2>
+                <div class="landed-actions">
+                    <button type="button" class="btn btn-primary" id="openPdfBtn">阅读 PDF（新标签页）</button>
+                    <a class="btn" id="downloadPdfBtn" download>下载 PDF</a>
+                    <button type="button" class="btn" id="redrawBtn">再抽一次</button>
                 </div>
-                <div class="hero-actions">
-                    <button type="button" class="btn" id="heroChangeBtn">更换图片</button>
-                    <button type="button" class="btn" id="heroResetBtn">恢复默认</button>
-                </div>
+                <p class="landed-note" id="landedNote"></p>
+                <div id="previewArea"></div>
+
+                <!-- 计时 -->
+                <section class="timer-section" aria-label="演讲计时器">
+                    <div class="timer-presets">
+                        <button type="button" class="timer-preset active" data-seconds="60" id="presetPrep">准备 1:00</button>
+                        <button type="button" class="timer-preset" data-seconds="300" id="presetSpeech">演讲 5:00</button>
+                    </div>
+                    <div class="timer-display" id="timerDisplay">1:00</div>
+                    <div class="timer-controls">
+                        <button type="button" class="btn btn-primary" id="timerStartBtn">开始</button>
+                        <button type="button" class="btn" id="timerResetBtn">重置</button>
+                    </div>
+                </section>
             </div>
 
-            <div id="brandDefault">
-                <div class="logo-container" id="logoSlot">
-                    <img src="logo.png" alt="" class="logo" id="logoImg" hidden>
-                </div>
-                <h1 class="brand-name">即兴演讲</h1>
-                <p class="brand-tagline">Impromptu Speech · PDF Lottery</p>
-            </div>
-
-            <button type="button" class="hero-upload-link" id="heroUploadLink">设置首页图片（本地上传，仅保存在你的浏览器）</button>
-        </header>
-
-        <!-- ============ Library panel ============ -->
-        <section class="panel" aria-labelledby="libraryTitle">
-            <div class="panel-title" id="libraryTitle">
-                <span>题库 · PDF Library</span>
-                <span>已收录 <span class="count" id="libraryCount">0</span> 个</span>
-            </div>
-
-            <div class="import-row">
-                <button type="button" class="btn btn-primary" id="pickFolderBtn">选择文件夹（替换题库）</button>
-                <button type="button" class="btn" id="pickFilesBtn">添加 PDF 文件（追加）</button>
-                <button type="button" class="btn" id="clearBtn" disabled>清空</button>
-            </div>
-
-            <div class="drop-hint" id="dropHint">也可以把 PDF 文件（或一个文件夹）拖到这里追加</div>
-
-            <div class="file-list" id="fileList"></div>
-            <p class="file-empty" id="fileEmpty">还没有导入文件。选择一个包含 PDF 演讲材料的文件夹，或直接添加 PDF 文件——文件名（不含 .pdf 后缀）将成为演讲题目。</p>
-
-            <p class="panel-note">
-                文件仅在你的浏览器本地读取与展示，不会上传到任何服务器；刷新页面后题库会清空，需要重新导入。
-                选择文件夹时只收录其中的直接 PDF 文件（不含子文件夹）；文件夹内容变化后需重新选择导入。
-            </p>
-        </section>
-
-        <!-- ============ Draw section ============ -->
-        <section class="draw-section">
-            <button class="draw-btn" id="drawBtn" disabled>
+            <!-- 启动按钮（待机态） -->
+            <button class="draw-btn" id="drawBtn">
                 <span id="btnText">启动演讲</span>
             </button>
-            <p class="draw-hint" id="drawHint">先在上方导入 PDF 题库</p>
-            <label class="draw-options">
-                <input type="checkbox" id="noRepeatToggle">
-                <span>不重复抽取（抽过的题不再出现）</span>
-            </label>
-            <a class="rules-link" id="rulesLink">查看训练规则</a>
-        </section>
-
-        <!-- ============ Result ============ -->
-        <div class="result" id="result" aria-live="polite">
-            <div class="result-number" id="resultNumber"></div>
-            <div class="result-topic" id="resultTopic"></div>
-            <div class="result-actions">
-                <button type="button" class="btn btn-primary" id="openPdfBtn">阅读 PDF（新标签页）</button>
-                <a class="btn" id="downloadPdfBtn" download>下载 PDF</a>
-                <button type="button" class="btn" id="redrawBtn">再抽一次</button>
-            </div>
-            <p class="result-note" id="resultNote"></p>
-            <div id="previewArea"></div>
+            <p class="draw-hint" id="drawHint">空格或回车键也可抽签</p>
         </div>
+    </main>
 
-        <!-- ============ Timer ============ -->
-        <section class="timer-section" aria-label="演讲计时器">
-            <div class="timer-presets">
-                <button type="button" class="timer-preset active" data-seconds="60" id="presetPrep">准备 1:00</button>
-                <button type="button" class="timer-preset" data-seconds="300" id="presetSpeech">演讲 5:00</button>
-            </div>
-            <div class="timer-display" id="timerDisplay">1:00</div>
-            <div class="timer-controls">
-                <button type="button" class="btn btn-primary" id="timerStartBtn">开始</button>
-                <button type="button" class="btn" id="timerResetBtn">重置</button>
-            </div>
-        </section>
+    <!-- ============ 组织者视图 ============ -->
+    <main class="view" id="viewOrg" hidden>
+        <div class="org">
+            <h1 class="org-heading">组织者台</h1>
+            <p class="org-sub">题库维护、抽签规则与展示设置都在这里。演讲者视图只负责抽取、阅读与计时，不会看到题目列表。</p>
 
-        <!-- ============ Progress ============ -->
-        <section class="progress-section">
-            <div class="progress-label" id="progressLabel"><span id="progressLabelText">Progress · 本次已抽</span> / <span id="progressCount">0</span></div>
-            <div class="progress-grid" id="progressGrid"></div>
-        </section>
-    </div>
+            <!-- 题库管理 -->
+            <section class="panel" aria-labelledby="libraryTitle">
+                <div class="panel-title" id="libraryTitle">
+                    <span>题库管理</span>
+                    <span>已收录 <span class="count" id="libraryCount">0</span> 个</span>
+                </div>
+
+                <div class="import-row">
+                    <button type="button" class="btn btn-primary" id="pickFolderBtn">选择文件夹（替换题库）</button>
+                    <button type="button" class="btn" id="pickFilesBtn">添加 PDF 文件（追加）</button>
+                    <button type="button" class="btn" id="reloadDefaultBtn">恢复内置题库</button>
+                    <button type="button" class="btn" id="clearBtn" disabled>清空</button>
+                </div>
+
+                <div class="drop-hint" id="dropHint">也可以把 PDF 文件（或一个文件夹）拖到这里追加</div>
+
+                <div class="file-list" id="fileList"></div>
+                <p class="file-empty" id="fileEmpty">题库为空。选择一个包含 PDF 的文件夹，或直接添加 PDF 文件——文件名（不含 .pdf 后缀）将成为演讲题目。</p>
+
+                <p class="panel-note">
+                    文件仅在浏览器本地读取与展示，不会上传到任何服务器；刷新页面后题库会重新从本站加载内置题库（或需手动重新导入自定义文件）。
+                    选择文件夹时只收录其中的直接 PDF 文件（不含子文件夹）；文件夹内容变化后需重新选择导入。
+                </p>
+            </section>
+
+            <!-- 抽签设置 -->
+            <section class="panel" aria-labelledby="drawSettingTitle">
+                <div class="panel-title" id="drawSettingTitle">
+                    <span>抽签设置</span>
+                    <span>已抽 <span class="count" id="progressCount">0</span> 次</span>
+                </div>
+                <div class="setting-row">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="noRepeatToggle">
+                        <span>不重复抽取（抽过的题不再出现，抽完提示重置）</span>
+                    </label>
+                    <button type="button" class="btn" id="resetDrawnBtn" disabled>重置抽签记录</button>
+                </div>
+                <div class="progress-grid" id="progressGrid"></div>
+            </section>
+
+            <!-- 训练规则 -->
+            <section class="panel" aria-labelledby="rulesPanelTitle">
+                <div class="panel-title" id="rulesPanelTitle"><span>训练规则</span></div>
+                <p class="org-sub" style="margin-bottom:14px">抽题后 1 分钟准备、约 5 分钟演讲，听众按三个问题反馈。开场前建议向演讲者口头说明规则。</p>
+                <button type="button" class="btn" id="rulesOpenBtn">查看完整训练规则</button>
+            </section>
+
+            <!-- 展示设置 -->
+            <section class="panel" aria-labelledby="appearanceTitle">
+                <div class="panel-title" id="appearanceTitle"><span>展示设置</span></div>
+                <div class="appearance-preview">
+                    <div class="appearance-brand" id="appearanceBrand">
+                        <span class="placeholder-text">当前为默认文字标题</span>
+                    </div>
+                    <button type="button" class="link-btn" id="heroUploadLink">上传首页图片（本地上传，仅保存在你的浏览器）</button>
+                    <button type="button" class="link-btn" id="heroResetBtn" hidden>恢复默认</button>
+                </div>
+            </section>
+        </div>
+    </main>
 
     <footer class="footer">
-        即兴演讲 · Impromptu Speech<br>
+        即兴演讲 · WKJ-Present<br>
         所有文件仅在你的浏览器本地处理，不会上传到任何服务器 · MIT License
     </footer>
 
@@ -1063,35 +1081,49 @@
         /* ================= State ================= */
         const state = {
             files: [],        // { id, file, name, displayName, dirLabel, size }
-            drawnIds: [],     // 本次会话抽中历史（不重复模式下即排除集）
-            currentId: null,  // 最近一次抽中的文件 id
-            isDrawing: false,
+            drawnIds: [],
+            currentId: null,
+            isDrawing: false, // 含滚动动画期间
+            isRolling: false,
             pdfUrl: null,
             preOpenWin: null,
+            mode: 'stage',    // stage | org
         };
 
         const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
         const COVER_KEY = 'impromptu_cover';
+        const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         /* ================= DOM ================= */
         const $ = (id) => document.getElementById(id);
         const els = {
+            // topbar / mode
+            modeStageBtn: $('modeStageBtn'), modeOrgBtn: $('modeOrgBtn'),
+            viewStage: $('viewStage'), viewOrg: $('viewOrg'),
+            brandText: $('brandText'), brandLogo: $('brandLogo'),
+            // stage
+            stageStatus: $('stageStatus'), stageCount: $('stageCount'),
+            reel: $('reel'), reelStrip: $('reelStrip'),
+            landed: $('landed'), landedNo: $('landedNo'), landedTitle: $('landedTitle'),
+            landedNote: $('landedNote'), previewArea: $('previewArea'),
+            openPdfBtn: $('openPdfBtn'), downloadPdfBtn: $('downloadPdfBtn'), redrawBtn: $('redrawBtn'),
+            drawBtn: $('drawBtn'), btnText: $('btnText'), drawHint: $('drawHint'),
+            // org
             libraryCount: $('libraryCount'), fileList: $('fileList'), fileEmpty: $('fileEmpty'),
-            pickFolderBtn: $('pickFolderBtn'), pickFilesBtn: $('pickFilesBtn'), clearBtn: $('clearBtn'),
+            pickFolderBtn: $('pickFolderBtn'), pickFilesBtn: $('pickFilesBtn'),
+            reloadDefaultBtn: $('reloadDefaultBtn'), clearBtn: $('clearBtn'),
             folderInput: $('folderInput'), filesInput: $('filesInput'), imageInput: $('imageInput'),
             dropHint: $('dropHint'),
-            drawBtn: $('drawBtn'), btnText: $('btnText'), drawHint: $('drawHint'),
-            noRepeatToggle: $('noRepeatToggle'),
-            result: $('result'), resultNumber: $('resultNumber'), resultTopic: $('resultTopic'),
-            openPdfBtn: $('openPdfBtn'), downloadPdfBtn: $('downloadPdfBtn'), redrawBtn: $('redrawBtn'),
-            resultNote: $('resultNote'), previewArea: $('previewArea'),
-            progressGrid: $('progressGrid'), progressCount: $('progressCount'), progressLabel: $('progressLabel'),
+            noRepeatToggle: $('noRepeatToggle'), resetDrawnBtn: $('resetDrawnBtn'),
+            progressGrid: $('progressGrid'), progressCount: $('progressCount'),
+            rulesOpenBtn: $('rulesOpenBtn'),
+            heroUploadLink: $('heroUploadLink'), heroResetBtn: $('heroResetBtn'),
+            appearanceBrand: $('appearanceBrand'),
+            // timer
             timerDisplay: $('timerDisplay'), timerStartBtn: $('timerStartBtn'), timerResetBtn: $('timerResetBtn'),
-            heroMediaWrap: $('heroMediaWrap'), heroImg: $('heroImg'),
-            heroChangeBtn: $('heroChangeBtn'), heroResetBtn: $('heroResetBtn'), heroUploadLink: $('heroUploadLink'),
-            brandDefault: $('brandDefault'), logoSlot: $('logoSlot'), logoImg: $('logoImg'),
-            rulesModal: $('rulesModal'), rulesLink: $('rulesLink'), modalClose: $('modalClose'),
-            toastWrap: $('toastWrap'),
+            presetPrep: $('presetPrep'), presetSpeech: $('presetSpeech'),
+            // modal / toast
+            rulesModal: $('rulesModal'), modalClose: $('modalClose'), toastWrap: $('toastWrap'),
         };
 
         /* ================= Utilities ================= */
@@ -1110,13 +1142,24 @@
         function pad2(n) { return String(n).padStart(2, '0'); }
 
         // 等概率随机索引：n 必须为正整数
-        function pickIndex(n) {
-            return Math.floor(Math.random() * n);
+        function pickIndex(n) { return Math.floor(Math.random() * n); }
+
+        function stripPdfExt(name) { return name.replace(/\.pdf$/i, ''); }
+
+        /* ================= View switching ================= */
+        function setMode(mode) {
+            if (state.isRolling) return; // 滚动抽取中不允许离开演讲台
+            state.mode = mode;
+            els.viewStage.hidden = mode !== 'stage';
+            els.viewOrg.hidden = mode !== 'org';
+            els.modeStageBtn.classList.toggle('active', mode === 'stage');
+            els.modeOrgBtn.classList.toggle('active', mode === 'org');
+            window.scrollTo(0, 0);
         }
 
-        function stripPdfExt(name) {
-            return name.replace(/\.pdf$/i, '');
-        }
+        els.modeStageBtn.addEventListener('click', () => setMode('stage'));
+        els.modeOrgBtn.addEventListener('click', () => setMode('org'));
+        els.brandText.addEventListener('click', () => setMode('stage'));
 
         /* ================= Library ================= */
         let uidSeq = 0;
@@ -1164,52 +1207,44 @@
                 }
             }));
 
-            const addedNames = [];
+            let addedCount = 0;
             for (const item of checked) {
                 if (item.bad) { skipped.notPdf++; continue; }
                 if (fingerprints.has(item.fp)) { skipped.dup++; continue; }
                 fingerprints.add(item.fp);
                 const relPath = item.file.webkitRelativePath || '';
-                const entry = {
+                state.files.push({
                     id: 'f' + (++uidSeq),
                     file: item.file,
                     name: item.file.name,
                     displayName: stripPdfExt(item.file.name),
                     dirLabel: formatDirLabel(relPath, item.file.name),
                     size: item.file.size,
-                };
-                state.files.push(entry);
-                addedNames.push(entry.displayName);
+                });
+                addedCount++;
             }
 
-            renderLibrary();
-            renderProgress();
+            renderAll();
 
             const parts = [];
-            if (addedNames.length) parts.push(`已收录 ${addedNames.length} 个 PDF`);
+            if (addedCount > 0) parts.push(`已收录 ${addedCount} 个 PDF`);
             if (skipped.dup) parts.push(`跳过 ${skipped.dup} 个重复文件`);
             if (skipped.ext) parts.push(`跳过 ${skipped.ext} 个非 PDF 文件`);
             if (skipped.notPdf) parts.push(`${skipped.notPdf} 个文件内容不是有效 PDF（已跳过）`);
             if (skipped.empty) parts.push(`跳过 ${skipped.empty} 个空文件`);
             if (skipped.sub) parts.push(`跳过 ${skipped.sub} 个子文件夹中的文件（仅收录直接子文件）`);
 
-            if (parts.length) {
-                toast(parts.join('；'), 4200);
-            } else {
-                toast('没有新增文件');
-            }
+            if (parts.length) toast(parts.join('；'), 4200);
+            else toast('没有新增文件');
         }
 
         function clearLibrary(notify = true) {
-            state.files.forEach(f => { /* File objects are GC'd with the array */ });
             releasePdfUrl();
             state.files = [];
             state.drawnIds = [];
             state.currentId = null;
-            els.result.classList.remove('show');
-            els.previewArea.innerHTML = '';
-            renderLibrary();
-            renderProgress();
+            hideLanded();
+            renderAll();
             if (notify) toast('题库已清空');
         }
 
@@ -1221,12 +1256,10 @@
             if (state.currentId === id) {
                 releasePdfUrl();
                 state.currentId = null;
-                els.result.classList.remove('show');
-                els.previewArea.innerHTML = '';
+                hideLanded();
                 toast(`已移除「${removed.displayName}」`);
             }
-            renderLibrary();
-            renderProgress();
+            renderAll();
         }
 
         function renderLibrary() {
@@ -1235,7 +1268,7 @@
             els.libraryCount.textContent = String(state.files.length);
             els.fileEmpty.hidden = state.files.length > 0;
             els.clearBtn.disabled = state.files.length === 0;
-            updateDrawAvailability();
+            updateStageAvailability();
 
             const dupNames = new Set();
             const seen = new Set();
@@ -1269,41 +1302,69 @@
             });
         }
 
-        function updateDrawAvailability() {
-            const empty = state.files.length === 0;
-            els.drawBtn.disabled = empty || state.isDrawing;
-            els.drawHint.textContent = empty
-                ? '先在上方导入 PDF 题库'
+        function renderStageStatus() {
+            els.stageCount.textContent = String(state.files.length);
+            // 状态文案在加载中/就绪/为空之间切换
+            if (state.files.length === 0) {
+                if (state.isLoadingDefault) {
+                    els.stageStatus.innerHTML = '内置题库加载中…';
+                } else {
+                    els.stageStatus.innerHTML = '题库为空 · 请切换到「组织者」导入';
+                }
+            } else {
+                els.stageStatus.innerHTML = `题库就绪 · <span class="accent">${state.files.length}</span> 套题目`;
+            }
+        }
+
+        function updateStageAvailability() {
+            els.drawBtn.disabled = state.files.length === 0 || state.isDrawing;
+            els.drawHint.textContent = state.files.length === 0
+                ? '导入题库后即可开始'
                 : '空格或回车键也可抽签';
         }
 
-        /* ================= Progress grid ================= */
         function renderProgress() {
             const grid = els.progressGrid;
             grid.innerHTML = '';
             els.progressCount.textContent = String(state.drawnIds.length);
-            $('progressLabelText').textContent = state.noRepeatMode
-                ? 'Progress · 已抽完不重复'
-                : 'Progress · 本次已抽';
+            els.resetDrawnBtn.disabled = state.drawnIds.length === 0;
 
             state.files.forEach((f, i) => {
                 const item = document.createElement('div');
                 item.className = 'progress-item';
                 if (state.drawnIds.includes(f.id)) item.classList.add('used');
-                if (f.id === state.currentId) item.classList.add('current');
                 item.textContent = String(i + 1);
                 item.title = f.displayName;
                 grid.appendChild(item);
             });
         }
 
-        /* ================= Draw ================= */
-        function availablePool() {
-            if (state.noRepeatMode) {
-                return state.files.filter(f => !state.drawnIds.includes(f.id));
-            }
-            return state.files.slice();
+        function renderAll() {
+            renderLibrary();
+            renderProgress();
+            renderStageStatus();
         }
+
+        /* ================= Stage UI states ================= */
+        function showIdleReel(text) {
+            els.reelStrip.innerHTML = '';
+            const row = document.createElement('div');
+            row.className = 'reel-row idle-row';
+            row.textContent = text || '· · ·';
+            els.reelStrip.appendChild(row);
+        }
+
+        function hideLanded() {
+            els.landed.hidden = true;
+            els.previewArea.innerHTML = '';
+            els.drawBtn.hidden = false;
+            els.btnText.textContent = '启动演讲';
+            showIdleReel();
+        }
+
+        /* ================= Rolling draw ================= */
+        const ROLL_LOOPS_MIN = 2, ROLL_LOOPS_RAND = 2;
+        const ROLL_BASE_MS = 2600, ROLL_RAND_MS = 600;
 
         function draw() {
             if (state.isDrawing) return;
@@ -1311,13 +1372,11 @@
             const pool = availablePool();
             if (!pool.length) {
                 if (!state.files.length) {
-                    toast('题库为空：请先导入 PDF 文件');
-                } else {
-                    if (window.confirm('所有题目都已抽完。是否重置后重新开始？')) {
-                        state.drawnIds = [];
-                        renderProgress();
-                        toast('已重置，可以重新抽签');
-                    }
+                    toast('题库为空：请先在组织者视图导入 PDF');
+                } else if (window.confirm('所有题目都已抽完。是否重置后重新开始？')) {
+                    state.drawnIds = [];
+                    renderProgress();
+                    toast('已重置，可以重新抽签');
                 }
                 return;
             }
@@ -1329,38 +1388,78 @@
             } catch (e) { /* 被拦截时走页面内兜底按钮 */ }
 
             state.isDrawing = true;
+            state.isRolling = true;
             els.drawBtn.disabled = true;
+            hideLanded();
+            // 滚动期间不显示按钮，画面只留给滚轮（须在 hideLanded 之后，它会重置按钮可见性）
+            els.drawBtn.hidden = true;
+            els.drawHint.hidden = true;
+            els.modeOrgBtn.disabled = true;
 
-            // 先定最终结果，动画仅作视觉过渡，结束时显示与打开的必然一致
+            // 先定最终结果，滚动只是视觉过程，定格的必然是抽中的
             const finalEntry = pool[pickIndex(pool.length)];
+            rollStrip(finalEntry);
+        }
 
-            els.result.classList.add('show');
-            els.resultTopic.classList.add('spinning');
-            els.resultNote.textContent = '';
+        function rollStrip(finalEntry) {
+            const names = state.files.map(f => f.displayName);
+            const loops = ROLL_LOOPS_MIN + pickIndex(ROLL_LOOPS_RAND + 1);
+            const seq = [];
+            let idx = pickIndex(names.length);
+            for (let i = 0; i < loops * names.length; i++) {
+                seq.push(names[idx % names.length]);
+                idx++;
+            }
+            seq.push(finalEntry.displayName);
+            const landRow = seq.length - 1;
 
-            let spinCount = 0;
-            const spinStart = Date.now();
-            const spinInterval = setInterval(() => {
-                const tmp = state.files[pickIndex(state.files.length)];
-                if (tmp) {
-                    els.resultNumber.textContent = pad2(state.files.indexOf(tmp) + 1);
-                    els.resultTopic.textContent = tmp.displayName;
-                }
-                spinCount++;
+            els.reelStrip.innerHTML = '';
+            els.reelStrip.style.transition = 'none';
+            els.reelStrip.style.transform = 'translateY(0)';
 
-                // 时间基准兜底：标签页被切走时 timer 节流，到点必须落定，不能让用户等
-                if (spinCount >= 12 || Date.now() - spinStart >= 900) {
-                    clearInterval(spinInterval);
-                    setTimeout(() => {
-                        state.drawnIds.push(finalEntry.id);
-                        state.currentId = finalEntry.id;
-                        revealResult(finalEntry);
-                        state.isDrawing = false;
-                        updateDrawAvailability();
-                        els.btnText.textContent = '再抽一次';
-                    }, 200);
-                }
-            }, 60);
+            seq.forEach((title, i) => {
+                const row = document.createElement('div');
+                row.className = 'reel-row';
+                const no = document.createElement('span');
+                no.className = 'row-no';
+                no.textContent = pad2((i % names.length) + 1);
+                const t = document.createElement('span');
+                t.className = 'row-title';
+                t.textContent = title;
+                row.append(no, t);
+                els.reelStrip.appendChild(row);
+            });
+
+            // 行高以后真实渲染为准
+            const rowH = els.reelStrip.firstElementChild.getBoundingClientRect().height || 88;
+            const finalY = -(landRow * rowH);
+            const rollMs = REDUCED_MOTION ? 250 : ROLL_BASE_MS + pickIndex(ROLL_RAND_MS + 1);
+
+            // 强制 reflow 后启动减速滚动
+            void els.reelStrip.getBoundingClientRect();
+            requestAnimationFrame(() => {
+                els.reelStrip.style.transition = `transform ${rollMs}ms cubic-bezier(0.12, 0.65, 0.12, 1)`;
+                els.reelStrip.style.transform = `translateY(${finalY}px)`;
+            });
+
+            // 时间基准落定：不依赖 transitionend（后台节流也能到点定格）
+            setTimeout(() => landOn(finalEntry), rollMs + 120);
+        }
+
+        function landOn(entry) {
+            state.drawnIds.push(entry.id);
+            state.currentId = entry.id;
+            state.isRolling = false;
+            state.isDrawing = false;
+            els.modeOrgBtn.disabled = false;
+            revealResult(entry);
+        }
+
+        function availablePool() {
+            if (state.noRepeatMode) {
+                return state.files.filter(f => !state.drawnIds.includes(f.id));
+            }
+            return state.files.slice();
         }
 
         function releasePdfUrl() {
@@ -1375,9 +1474,13 @@
             state.pdfUrl = URL.createObjectURL(entry.file);
 
             const idx = state.files.indexOf(entry);
-            els.resultTopic.classList.remove('spinning');
-            els.resultNumber.textContent = pad2(idx + 1);
-            els.resultTopic.textContent = entry.displayName;
+            els.reel.hidden = true;
+            els.landed.hidden = false;
+            els.drawBtn.hidden = true;
+            els.drawHint.hidden = true;
+
+            els.landedNo.textContent = pad2(idx + 1);
+            els.landedTitle.textContent = entry.displayName;
             renderProgress();
 
             // 打开 PDF：优先写入预开窗口
@@ -1392,8 +1495,8 @@
             }
 
             els.openPdfBtn.hidden = opened;
-            els.resultNote.textContent = opened
-                ? '已在新标签页打开。若浏览器拦截了弹窗，可点「下载 PDF」，或重新抽取。'
+            els.landedNote.textContent = opened
+                ? '已在新标签页打开。若浏览器拦截了弹窗，可点「下载 PDF」，或再抽一次。'
                 : (entry.dirLabel ? `来自 ${entry.dirLabel}/ · ` : '') + '点击按钮在新标签页阅读，或直接下载。';
 
             els.downloadPdfBtn.href = state.pdfUrl;
@@ -1425,7 +1528,6 @@
 
         /* ================= Timer ================= */
         const timer = { total: 60, remain: 60, running: false, endAt: 0, raf: 0 };
-        const presetPrep = $('presetPrep'), presetSpeech = $('presetSpeech');
 
         function fmtTime(sec) {
             const m = Math.floor(Math.max(sec, 0) / 60);
@@ -1478,31 +1580,43 @@
 
         function setPreset(seconds, btn) {
             timer.total = seconds;
-            [presetPrep, presetSpeech].forEach(b => b.classList.toggle('active', b === btn));
+            [els.presetPrep, els.presetSpeech].forEach(b => b.classList.toggle('active', b === btn));
             resetTimer();
         }
 
-        presetPrep.addEventListener('click', () => setPreset(60, presetPrep));
-        presetSpeech.addEventListener('click', () => setPreset(300, presetSpeech));
+        els.presetPrep.addEventListener('click', () => setPreset(60, els.presetPrep));
+        els.presetSpeech.addEventListener('click', () => setPreset(300, els.presetSpeech));
         els.timerStartBtn.addEventListener('click', toggleTimer);
         els.timerResetBtn.addEventListener('click', resetTimer);
         renderTimer();
 
-        /* ================= Cover image ================= */
-        function showCover(dataUrl) {
-            els.heroImg.src = dataUrl;
-            els.heroMediaWrap.hidden = false;
-            els.logoSlot.hidden = true;
-            els.heroUploadLink.hidden = true;
+        /* ================= Cover image（组织者·展示设置） ================= */
+        function renderAppearanceBrand(src) {
+            els.appearanceBrand.innerHTML = '';
+            if (src) {
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = '首页图片预览';
+                els.appearanceBrand.appendChild(img);
+                els.heroResetBtn.hidden = false;
+            } else {
+                const ph = document.createElement('span');
+                ph.className = 'placeholder-text';
+                ph.textContent = '当前为默认文字标题';
+                els.appearanceBrand.appendChild(ph);
+                els.heroResetBtn.hidden = true;
+            }
         }
 
-        function hideCover() {
-            els.heroMediaWrap.hidden = true;
-            els.heroImg.removeAttribute('src'); // 空 src 会被解析为当前页 URL，必须移除属性
-            const logoVisible = els.logoImg.complete && els.logoImg.naturalWidth > 0;
-            els.logoImg.hidden = !logoVisible;
-            els.logoSlot.hidden = !logoVisible;
-            els.heroUploadLink.hidden = false;
+        function applyCover(src) {
+            if (src) {
+                els.brandLogo.src = src;
+                els.brandLogo.hidden = false;
+            } else {
+                els.brandLogo.removeAttribute('src');
+                els.brandLogo.hidden = true;
+            }
+            renderAppearanceBrand(src);
         }
 
         function loadImage(src) {
@@ -1540,7 +1654,7 @@
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                 }
-                showCover(dataUrl);
+                applyCover(dataUrl);
                 try {
                     localStorage.setItem(COVER_KEY, dataUrl);
                 } catch (e) {
@@ -1552,7 +1666,6 @@
         }
 
         els.heroUploadLink.addEventListener('click', () => els.imageInput.click());
-        els.heroChangeBtn.addEventListener('click', () => els.imageInput.click());
         els.imageInput.addEventListener('change', () => {
             if (els.imageInput.files && els.imageInput.files[0]) {
                 handleCoverFile(els.imageInput.files[0]);
@@ -1561,32 +1674,24 @@
         });
         els.heroResetBtn.addEventListener('click', () => {
             try { localStorage.removeItem(COVER_KEY); } catch (e) {}
-            hideCover();
-            toast('已恢复默认首页');
+            applyCover(null);
+            toast('已恢复默认标题');
         });
-        els.heroImg.addEventListener('error', () => {
-            try { localStorage.removeItem(COVER_KEY); } catch (e) {}
-            hideCover();
+        els.brandLogo.addEventListener('error', () => {
+            // logo.png 缺失（开源克隆场景）时静默回退文字标题
+            els.brandLogo.hidden = true;
         });
-
-        // 启动时：优先本地 logo.png，其次 localStorage 头图（两者互斥，上传图优先）
-        els.logoImg.addEventListener('load', () => {
-            els.logoImg.hidden = false;
-            if (els.heroMediaWrap.hidden) els.logoSlot.hidden = false;
-        });
-        els.logoImg.addEventListener('error', () => {
-            els.logoImg.hidden = true;
-            if (els.heroMediaWrap.hidden) els.logoSlot.hidden = true;
-        });
-        if (els.logoImg.complete && els.logoImg.naturalWidth > 0) {
-            els.logoImg.hidden = false;
-            if (els.heroMediaWrap.hidden) els.logoSlot.hidden = false;
-        }
 
         function restoreCover() {
             let saved = null;
             try { saved = localStorage.getItem(COVER_KEY); } catch (e) {}
-            if (saved) showCover(saved);
+            if (saved) {
+                applyCover(saved);
+            } else {
+                renderAppearanceBrand(null);
+                // 本地存在 logo.png 时显示（未 hidden 即加载成功）
+                if (els.brandLogo.complete && els.brandLogo.naturalWidth > 0) els.brandLogo.hidden = false;
+            }
         }
 
         /* ================= Import wiring ================= */
@@ -1604,7 +1709,6 @@
             els.filesInput.value = '';
         });
 
-        // Drag & drop（追加）
         ['dragenter', 'dragover'].forEach(ev =>
             els.dropHint.addEventListener(ev, (e) => {
                 e.preventDefault();
@@ -1655,20 +1759,24 @@
                             f.file(file => { out.push(file); if (--waiting === 0) done(); },
                                    () => { if (--waiting === 0) done(); })
                         );
-                        // 子目录不入库：只收录直接子文件
                     }, done);
                 };
                 readBatch();
             } else { done(); }
         }
 
-        /* ================= Draw wiring ================= */
+        /* ================= Draw settings ================= */
         Object.defineProperty(state, 'noRepeatMode', {
             get() { return els.noRepeatToggle.checked; },
         });
         els.noRepeatToggle.addEventListener('change', () => {
             renderProgress();
             toast(els.noRepeatToggle.checked ? '已开启不重复抽取' : '已恢复默认：每次独立随机');
+        });
+        els.resetDrawnBtn.addEventListener('click', () => {
+            state.drawnIds = [];
+            renderProgress();
+            toast('抽签记录已重置');
         });
 
         els.drawBtn.addEventListener('click', draw);
@@ -1677,6 +1785,7 @@
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'Enter') {
                 if (els.rulesModal.classList.contains('show')) return;
+                if (state.mode !== 'stage') return; // 组织者视图不响应抽签快捷键
                 const tag = (e.target.tagName || '').toLowerCase();
                 if (tag === 'input' || tag === 'button' || tag === 'a' || tag === 'textarea') return;
                 e.preventDefault();
@@ -1688,17 +1797,14 @@
         });
 
         /* ================= Rules modal ================= */
-        els.rulesLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            els.rulesModal.classList.add('show');
-        });
+        els.rulesOpenBtn.addEventListener('click', () => els.rulesModal.classList.add('show'));
         els.modalClose.addEventListener('click', () => els.rulesModal.classList.remove('show'));
         els.rulesModal.addEventListener('click', (e) => {
             if (e.target === els.rulesModal) els.rulesModal.classList.remove('show');
         });
 
         /* ================= Default library (autoload) ================= */
-        // 启动时从本站 library/manifest.json 拉取内置题库；file:// 或清单缺失时静默保持空态
+        // 启动时从本站 library/manifest.json 拉取内置题库；file:// 或清单缺失时静默跳过
         async function loadDefaultLibrary() {
             let names;
             try {
@@ -1709,9 +1815,10 @@
             } catch (e) {
                 return; // file:// 直开等场景：浏览器禁止 fetch，保持手动导入引导
             }
-            if (!names.length || state.files.length) return;
+            if (!names.length) return;
 
-            els.drawHint.textContent = '正在加载内置题库…';
+            state.isLoadingDefault = true;
+            renderStageStatus();
             const results = await Promise.all(names.map(async (n) => {
                 try {
                     const r = await fetch('library/' + encodeURIComponent(n));
@@ -1721,17 +1828,19 @@
                     return null;
                 }
             }));
+            state.isLoadingDefault = false;
+
             const ok = results.filter(Boolean);
-            if (!ok.length) return;
+            if (!ok.length || state.files.length) { renderStageStatus(); return; }
 
             await addFiles(ok, 'append');
             const failed = results.length - ok.length;
-            if (failed) toast(`${failed} 个内置题目加载失败，可刷新重试或手动导入`);
+            if (failed) toast(`${failed} 个内置题目加载失败，可刷新重试或在组织者视图手动导入`);
         }
 
         /* ================= Init ================= */
-        renderLibrary();
-        renderProgress();
+        showIdleReel('· · ·');
+        renderAll();
         restoreCover();
         loadDefaultLibrary();
 
@@ -1742,8 +1851,9 @@
             addFiles,
             clearLibrary,
             draw,
+            setMode,
             resetDrawn: () => { state.drawnIds = []; renderProgress(); },
-            getState: () => ({ files: state.files.length, drawn: state.drawnIds.length, drawing: state.isDrawing }),
+            getState: () => ({ files: state.files.length, drawn: state.drawnIds.length, drawing: state.isDrawing, rolling: state.isRolling, mode: state.mode }),
         };
     })();
     </script>
