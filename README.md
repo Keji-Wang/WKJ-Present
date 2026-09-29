@@ -36,6 +36,7 @@
 
 ## 功能
 
+- **内置默认题库，开箱即抽**：通过 HTTP 访问时（GitHub Pages、本地静态服务），打开页面即自动加载 [`library/`](library/) 里的 12 套题目，无需任何操作；`library/manifest.json` 是题库清单，增删题目改它即可。
 - **PDF 题库导入**
   - 选择文件夹（自动收录其中的直接子 PDF 文件，不含子文件夹），或直接多选 PDF 文件，或拖拽追加；
   - 自动展示文件总数和去掉 `.pdf` 后缀的文件名（扩展名大小写兼容），文件名即演讲题目；
@@ -62,12 +63,12 @@
 ```bash
 git clone https://github.com/Keji-Wang/WKJ-Present.git
 cd WKJ-Present
-# 直接双击 index.html 也能用；或起一个本地静态服务：
+# 起一个本地静态服务（打开即自动加载内置题库）：
 python -m http.server 8000
 # 打开 http://localhost:8000
 ```
 
-想立刻体验：把仓库里的 [`library/`](library/) 文件夹导入网页，即可开始第一轮训练。
+> 直接双击 `index.html`（file://）也能用，但因浏览器安全限制无法自动加载内置题库，需手动把 `library/` 文件夹导入页面。
 
 ### 部署
 
@@ -83,6 +84,7 @@ python -m http.server 8000
 
 | 行为 | 实际情况 |
 | --- | --- |
+| 内置题库自动加载 | 需 HTTP 访问（GitHub Pages / 本地静态服务）；`file://` 直开时浏览器禁止页面读取本地文件，自动加载会跳过，需手动导入 |
 | 文件夹选择 | Chrome / Edge / Firefox / Safari 现代版均支持；不支持的浏览器请用「添加 PDF 文件」多选入口 |
 | 只收录直接子文件 | 选择文件夹时**只收录其中的直接 PDF 文件**，子文件夹中的文件会被跳过并有提示 |
 | 文件夹内容变化 | 浏览器无法持续监控磁盘目录——文件夹内容变化后需**重新选择导入** |
@@ -96,7 +98,7 @@ python -m http.server 8000
 ```
 WKJ-Present/
 ├── index.html    # 全部应用（HTML + CSS + JS，单文件零依赖）
-├── library/      # 12 套真实训练用默认题库（AI 生成的虚构主题 PDF）
+├── library/      # 12 套真实训练用默认题库（AI 生成的虚构主题 PDF）+ manifest.json 清单
 ├── prompts/      # PPT 内容生成提示词（元提示词 + 实例效果）
 ├── 规则.md        # 完整训练规则（抽题、时间、反馈方式）
 └── docs/screenshots/  # 截图

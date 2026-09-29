@@ -1697,10 +1697,43 @@
             if (e.target === els.rulesModal) els.rulesModal.classList.remove('show');
         });
 
+        /* ================= Default library (autoload) ================= */
+        // 启动时从本站 library/manifest.json 拉取内置题库；file:// 或清单缺失时静默保持空态
+        async function loadDefaultLibrary() {
+            let names;
+            try {
+                const res = await fetch('library/manifest.json');
+                if (!res.ok) return;
+                const manifest = await res.json();
+                names = (manifest.files || []).filter(n => typeof n === 'string' && /\.pdf$/i.test(n));
+            } catch (e) {
+                return; // file:// 直开等场景：浏览器禁止 fetch，保持手动导入引导
+            }
+            if (!names.length || state.files.length) return;
+
+            els.drawHint.textContent = '正在加载内置题库…';
+            const results = await Promise.all(names.map(async (n) => {
+                try {
+                    const r = await fetch('library/' + encodeURIComponent(n));
+                    if (!r.ok) throw new Error(r.status);
+                    return new File([await r.blob()], n, { type: 'application/pdf' });
+                } catch (e) {
+                    return null;
+                }
+            }));
+            const ok = results.filter(Boolean);
+            if (!ok.length) return;
+
+            await addFiles(ok, 'append');
+            const failed = results.length - ok.length;
+            if (failed) toast(`${failed} 个内置题目加载失败，可刷新重试或手动导入`);
+        }
+
         /* ================= Init ================= */
         renderLibrary();
         renderProgress();
         restoreCover();
+        loadDefaultLibrary();
 
         // 自动化验证钩子（只读）
         window.__impromptu = {
