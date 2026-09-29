@@ -1,5 +1,7 @@
 # WKJ-Present · 即兴演讲
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 一个**纯前端**的 PDF 随机演讲训练工具：组织者维护题库与规则，演讲者滚动抽一套陌生 PDF 立即开讲——**抽题定格之前，演讲者看不到任何题目列表**，保持未知的紧张感。
 
 单文件、零依赖、零构建——`index.html` 就是全部。所有文件只在你的浏览器本地处理，不会上传到任何服务器。
