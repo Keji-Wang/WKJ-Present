@@ -398,15 +398,23 @@
             letter-spacing: 0.08em;
         }
 
-        /* Preview */
-        .preview-frame {
+        /* First-page preview (rendered by PDF.js) */
+        #previewArea {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .page-canvas {
             margin-top: 24px;
             width: 100%;
             max-width: 640px;
-            height: 480px;
+            display: block;
             border: 1px solid var(--color-border);
             border-radius: 6px;
-            background: var(--color-surface-hover);
+            background: #fff;
+            box-shadow: 0 2px 12px rgba(44, 44, 44, 0.08);
         }
 
         .preview-fallback {
@@ -431,6 +439,13 @@
             border-top: 1px dashed var(--color-border);
             text-align: center;
             animation: fadeIn 0.8s ease 0.2s both;
+        }
+
+        .timer-caption {
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            color: var(--color-text-secondary);
+            margin-bottom: 12px;
         }
 
         .timer-presets {
@@ -909,7 +924,7 @@
                 <div class="landed-no" id="landedNo"></div>
                 <h2 class="landed-title" id="landedTitle"></h2>
                 <div class="landed-actions">
-                    <button type="button" class="btn btn-primary" id="openPdfBtn">阅读 PDF（新标签页）</button>
+                    <a class="btn btn-primary" id="openPdfBtn" target="_blank" rel="noopener">打开 PDF</a>
                     <a class="btn" id="downloadPdfBtn" download>下载 PDF</a>
                     <button type="button" class="btn" id="redrawBtn">再抽一次</button>
                 </div>
@@ -918,6 +933,7 @@
 
                 <!-- 计时 -->
                 <section class="timer-section" aria-label="演讲计时器">
+                    <p class="timer-caption">准备 1 分钟，演讲 5 分钟</p>
                     <div class="timer-presets">
                         <button type="button" class="timer-preset active" data-seconds="60" id="presetPrep">准备 1:00</button>
                         <button type="button" class="timer-preset" data-seconds="300" id="presetSpeech">演讲 5:00</button>
@@ -1007,7 +1023,7 @@
     </main>
 
     <footer class="footer">
-        即兴演讲 · WKJ-Present<br>
+        即兴演讲 · WKJ-Present <span id="appVersion">v0.2.0</span><br>
         所有文件仅在你的浏览器本地处理，不会上传到任何服务器 · MIT License
     </footer>
 
@@ -1086,11 +1102,10 @@
             isDrawing: false, // 含滚动动画期间
             isRolling: false,
             pdfUrl: null,
-            preOpenWin: null,
+            renderSeq: 0,     // 第一页渲染令牌：重抽/清空后丢弃过期渲染
             mode: 'stage',    // stage | org
         };
 
-        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
         const COVER_KEY = 'impromptu_cover';
         const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1358,6 +1373,7 @@
             els.landed.hidden = true;
             els.reel.hidden = false; // 定格时滚轮被隐藏，重抽前必须恢复，否则第二次滚动动画不可见
             els.previewArea.innerHTML = '';
+            state.renderSeq++; // 作废进行中的第一页渲染
             els.drawBtn.hidden = false;
             els.btnText.textContent = '启动演讲';
             showIdleReel();
@@ -1382,12 +1398,7 @@
                 return;
             }
 
-            // 用户手势栈内同步预开窗口，避免动画结束后打开被弹窗拦截
-            state.preOpenWin = null;
-            try {
-                state.preOpenWin = window.open('about:blank', '_blank');
-            } catch (e) { /* 被拦截时走页面内兜底按钮 */ }
-
+            // 用户手势内立即进入滚动：不预开任何新标签页，打开 PDF 由用户主动点击
             state.isDrawing = true;
             state.isRolling = true;
             els.drawBtn.disabled = true;
@@ -1484,47 +1495,116 @@
             els.landedTitle.textContent = entry.displayName;
             renderProgress();
 
-            // 打开 PDF：优先写入预开窗口
-            let opened = false;
-            const win = state.preOpenWin;
-            state.preOpenWin = null;
-            if (win && !win.closed) {
-                try {
-                    win.location.href = state.pdfUrl;
-                    opened = true;
-                } catch (e) { opened = false; }
-            }
-
-            els.openPdfBtn.hidden = opened;
-            els.landedNote.textContent = opened
-                ? '已在新标签页打开。若浏览器拦截了弹窗，可点「下载 PDF」，或再抽一次。'
-                : (entry.dirLabel ? `来自 ${entry.dirLabel}/ · ` : '') + '点击按钮在新标签页阅读，或直接下载。';
+            // 抽完留在当前页：打开动作交给用户主动触发（锚点原生新开，不用 window.open）
+            els.landedNote.textContent = (entry.dirLabel ? `来自 ${entry.dirLabel}/ · ` : '') + '点「打开 PDF」在新标签页查看完整文件，或直接下载。';
 
             els.downloadPdfBtn.href = state.pdfUrl;
             els.downloadPdfBtn.setAttribute('download', entry.name);
-            els.openPdfBtn.onclick = () => {
-                const url = URL.createObjectURL(entry.file);
-                window.open(url, '_blank');
-                setTimeout(() => URL.revokeObjectURL(url), 60000);
-            };
+            els.openPdfBtn.href = state.pdfUrl;
 
-            renderPreview(entry);
+            renderFirstPage(entry);
         }
 
-        function renderPreview(entry) {
-            els.previewArea.innerHTML = '';
-            if (isMobile) {
+        /* ================= 第一页预览（PDF.js 懒加载 + 本机渲染） ================= */
+        const PDFJS_CDN_LIST = [
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/',
+            'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/',
+        ];
+        const PDFJS_STEP_TIMEOUT = 15000;
+        let pdfjsReady = null;
+
+        function withTimeout(promise, ms) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+            ]);
+        }
+
+        function loadPdfJsFrom(base) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = base + 'pdf.min.js';
+                s.onload = () => {
+                    try {
+                        resolve(window.pdfjsLib);
+                    } catch (e) { reject(e); }
+                };
+                s.onerror = () => reject(new Error('PDF.js 脚本加载失败'));
+                document.head.appendChild(s);
+            });
+        }
+
+        function loadPdfJs() {
+            if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+            if (!pdfjsReady) {
+                pdfjsReady = (async () => {
+                    for (const base of PDFJS_CDN_LIST) {
+                        try {
+                            return await withTimeout(loadPdfJsFrom(base), PDFJS_STEP_TIMEOUT);
+                        } catch (e) { /* 尝试下一个 CDN */ }
+                    }
+                    return null;
+                })();
+            }
+            return pdfjsReady;
+        }
+
+        async function getDocumentWithRetry(file, seq) {
+            // 单 CDN 的 worker 可能拉取超时：依次换 CDN 重试。
+            // pdf.js 会转移 ArrayBuffer，所以每轮从 File 重新读取，避免重试时数据已 detach。
+            for (const base of PDFJS_CDN_LIST) {
+                try {
+                    const data = await file.arrayBuffer();
+                    if (seq !== state.renderSeq) return null;
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+                    const pdf = await withTimeout(window.pdfjsLib.getDocument({ data }).promise, PDFJS_STEP_TIMEOUT);
+                    if (seq !== state.renderSeq) return null;
+                    return pdf;
+                } catch (e) { /* 尝试下一个 CDN */ }
+            }
+            throw new Error('PDF 解析失败');
+        }
+
+        function renderFirstPage(entry) {
+            const area = els.previewArea;
+            area.innerHTML = '';
+            const seq = ++state.renderSeq;
+
+            const loading = document.createElement('div');
+            loading.className = 'preview-fallback';
+            loading.textContent = '正在渲染第一页…';
+            area.appendChild(loading);
+
+            (async () => {
+                const lib = await loadPdfJs();
+                if (!lib) throw new Error('PDF.js 不可用');
+                if (seq !== state.renderSeq) return;
+                const pdf = await getDocumentWithRetry(entry.file, seq);
+                if (!pdf || seq !== state.renderSeq) return;
+                const page = await withTimeout(pdf.getPage(1), PDFJS_STEP_TIMEOUT);
+                if (seq !== state.renderSeq) return;
+                // 固定 640 逻辑像素为渲染基准（容器在 flex 列布局中宽度会塌缩，不可依赖 clientWidth）
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                const base = page.getViewport({ scale: 1 });
+                const viewport = page.getViewport({ scale: (640 * dpr) / base.width });
+                const canvas = document.createElement('canvas');
+                canvas.className = 'page-canvas';
+                canvas.width = Math.round(viewport.width);
+                canvas.height = Math.round(viewport.height);
+                canvas.style.aspectRatio = `${canvas.width} / ${canvas.height}`;
+                canvas.title = `${entry.displayName}（第 1 页）`;
+                await withTimeout(page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise, PDFJS_STEP_TIMEOUT);
+                if (seq !== state.renderSeq) return;
+                area.innerHTML = '';
+                area.appendChild(canvas);
+            })().catch(() => {
+                if (seq !== state.renderSeq) return;
+                area.innerHTML = '';
                 const tip = document.createElement('div');
                 tip.className = 'preview-fallback';
-                tip.textContent = '手机浏览器对页面内嵌 PDF 预览支持不稳定，请点击上方「阅读 PDF」在新标签页打开，效果更可靠。';
-                els.previewArea.appendChild(tip);
-                return;
-            }
-            const frame = document.createElement('iframe');
-            frame.className = 'preview-frame';
-            frame.title = `PDF 预览：${entry.displayName}`;
-            frame.src = state.pdfUrl;
-            els.previewArea.appendChild(frame);
+                tip.textContent = '第一页预览渲染失败（渲染库来自公共 CDN，可能被当前网络拦截）。PDF 文件本身不受影响，可用「打开 PDF」或「下载 PDF」查看。';
+                area.appendChild(tip);
+            });
         }
 
         /* ================= Timer ================= */
