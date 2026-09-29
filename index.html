@@ -1356,6 +1356,7 @@
 
         function hideLanded() {
             els.landed.hidden = true;
+            els.reel.hidden = false; // 定格时滚轮被隐藏，重抽前必须恢复，否则第二次滚动动画不可见
             els.previewArea.innerHTML = '';
             els.drawBtn.hidden = false;
             els.btnText.textContent = '启动演讲';
