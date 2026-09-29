@@ -1505,13 +1505,9 @@
             renderFirstPage(entry);
         }
 
-        /* ================= 第一页预览（PDF.js 懒加载 + 本机渲染） ================= */
-        const PDFJS_CDN_LIST = [
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/',
-            'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/',
-        ];
+        /* ================= 第一页预览（PDF.js 内嵌本仓，本机渲染） ================= */
+        const PDFJS_BASE = 'vendor/pdfjs/';
         const PDFJS_STEP_TIMEOUT = 15000;
-        let pdfjsReady = null;
 
         function withTimeout(promise, ms) {
             return Promise.race([
@@ -1520,50 +1516,45 @@
             ]);
         }
 
-        function loadPdfJsFrom(base) {
+        function loadPdfJs() {
+            if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
             return new Promise((resolve, reject) => {
                 const s = document.createElement('script');
-                s.src = base + 'pdf.min.js';
+                s.src = PDFJS_BASE + 'pdf.min.js';
                 s.onload = () => {
                     try {
+                        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.js';
                         resolve(window.pdfjsLib);
                     } catch (e) { reject(e); }
                 };
-                s.onerror = () => reject(new Error('PDF.js 脚本加载失败'));
+                s.onerror = () => reject(new Error('PDF.js 加载失败'));
                 document.head.appendChild(s);
             });
         }
 
-        function loadPdfJs() {
-            if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-            if (!pdfjsReady) {
-                pdfjsReady = (async () => {
-                    for (const base of PDFJS_CDN_LIST) {
-                        try {
-                            return await withTimeout(loadPdfJsFrom(base), PDFJS_STEP_TIMEOUT);
-                        } catch (e) { /* 尝试下一个 CDN */ }
-                    }
-                    pdfjsReady = null; // 全部失败不永久缓存：下一次抽签重新尝试（网络可能已恢复）
-                    return null;
-                })();
-            }
-            return pdfjsReady;
-        }
-
-        async function getDocumentWithRetry(file, seq) {
-            // 单 CDN 的 worker 可能拉取超时：依次换 CDN 重试。
-            // pdf.js 会转移 ArrayBuffer，所以每轮从 File 重新读取，避免重试时数据已 detach。
-            for (const base of PDFJS_CDN_LIST) {
-                try {
-                    const data = await file.arrayBuffer();
-                    if (seq !== state.renderSeq) return null;
-                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
-                    const pdf = await withTimeout(window.pdfjsLib.getDocument({ data }).promise, PDFJS_STEP_TIMEOUT);
-                    if (seq !== state.renderSeq) return null;
-                    return pdf;
-                } catch (e) { /* 尝试下一个 CDN */ }
-            }
-            throw new Error('PDF 解析失败');
+        async function renderFirstPagePipeline(entry, seq, area) {
+            const lib = await loadPdfJs();
+            if (seq !== state.renderSeq) return;
+            const data = await entry.file.arrayBuffer();
+            if (seq !== state.renderSeq) return;
+            const pdf = await withTimeout(lib.getDocument({ data }).promise, PDFJS_STEP_TIMEOUT);
+            if (seq !== state.renderSeq) return;
+            const page = await withTimeout(pdf.getPage(1), PDFJS_STEP_TIMEOUT);
+            if (seq !== state.renderSeq) return;
+            // 固定 640 逻辑像素为渲染基准（容器在 flex 列布局中宽度会塌缩，不可依赖 clientWidth）
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const base = page.getViewport({ scale: 1 });
+            const viewport = page.getViewport({ scale: (640 * dpr) / base.width });
+            const canvas = document.createElement('canvas');
+            canvas.className = 'page-canvas';
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            canvas.style.aspectRatio = `${canvas.width} / ${canvas.height}`;
+            canvas.title = `${entry.displayName}（第 1 页）`;
+            await withTimeout(page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise, PDFJS_STEP_TIMEOUT);
+            if (seq !== state.renderSeq) return;
+            area.innerHTML = '';
+            area.appendChild(canvas);
         }
 
         function renderFirstPage(entry) {
@@ -1576,34 +1567,12 @@
             loading.textContent = '正在渲染第一页…';
             area.appendChild(loading);
 
-            (async () => {
-                const lib = await loadPdfJs();
-                if (!lib) throw new Error('PDF.js 不可用');
-                if (seq !== state.renderSeq) return;
-                const pdf = await getDocumentWithRetry(entry.file, seq);
-                if (!pdf || seq !== state.renderSeq) return;
-                const page = await withTimeout(pdf.getPage(1), PDFJS_STEP_TIMEOUT);
-                if (seq !== state.renderSeq) return;
-                // 固定 640 逻辑像素为渲染基准（容器在 flex 列布局中宽度会塌缩，不可依赖 clientWidth）
-                const dpr = Math.min(window.devicePixelRatio || 1, 2);
-                const base = page.getViewport({ scale: 1 });
-                const viewport = page.getViewport({ scale: (640 * dpr) / base.width });
-                const canvas = document.createElement('canvas');
-                canvas.className = 'page-canvas';
-                canvas.width = Math.round(viewport.width);
-                canvas.height = Math.round(viewport.height);
-                canvas.style.aspectRatio = `${canvas.width} / ${canvas.height}`;
-                canvas.title = `${entry.displayName}（第 1 页）`;
-                await withTimeout(page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise, PDFJS_STEP_TIMEOUT);
-                if (seq !== state.renderSeq) return;
-                area.innerHTML = '';
-                area.appendChild(canvas);
-            })().catch(() => {
+            renderFirstPagePipeline(entry, seq, area).catch(() => {
                 if (seq !== state.renderSeq) return;
                 area.innerHTML = '';
                 const tip = document.createElement('div');
                 tip.className = 'preview-fallback';
-                tip.textContent = '第一页预览渲染失败（渲染库来自公共 CDN，可能被当前网络拦截）。PDF 文件本身不受影响，可用「打开 PDF」或「下载 PDF」查看。';
+                tip.textContent = '第一页预览渲染失败。PDF 文件本身不受影响，可用「打开 PDF」或「下载 PDF」查看。';
                 area.appendChild(tip);
             });
         }
