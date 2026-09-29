@@ -1543,6 +1543,7 @@
                             return await withTimeout(loadPdfJsFrom(base), PDFJS_STEP_TIMEOUT);
                         } catch (e) { /* 尝试下一个 CDN */ }
                     }
+                    pdfjsReady = null; // 全部失败不永久缓存：下一次抽签重新尝试（网络可能已恢复）
                     return null;
                 })();
             }
